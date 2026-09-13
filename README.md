@@ -41,7 +41,8 @@ App Android dịch manga tiếng Nhật sang tiếng Việt **ngay trên máy**,
 
 1. **Cả trang trong một lần gọi LLM.** Đo được: nhanh hơn dịch-từng-ô **3.3 lần**, và là cách duy nhất dịch đủ 48/48 bubble.
 2. **Đầu ra của model là dữ liệu không đáng tin cho tới khi qua cổng kiểm tra.** JSON hợp lệ và đủ số phần tử *không* tính là đã kiểm tra.
-3. **Thoái lui luôn là chữ gốc, không bao giờ là ô trống.** Thứ tự bắt buộc: có bản dịch → tô nền → vẽ chữ.
+3. **Thoái lui luôn là chữ gốc, không bao giờ là ô trống.** Chỉ tô nền che chữ Nhật khi đã có bản dịch được chấp nhận cho đúng bubble đó.
+4. **Vẽ hai lượt trên toàn trang** — tô hết nền, rồi mới vẽ hết chữ. Bóng thoại chồng lấn nhau, nên tô-rồi-vẽ từng cái sẽ khiến nền bubble sau xoá mất chữ bubble trước.
 
 ---
 

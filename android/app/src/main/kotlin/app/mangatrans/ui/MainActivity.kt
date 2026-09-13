@@ -200,26 +200,43 @@ class MainActivity : AppCompatActivity() {
         } ?: run { say("Không đọc được ảnh"); return@launch }
 
         say("Ảnh ${src.width}×${src.height}")
+        // Giu ban goc de ve lai tu dau moi lan co bubble moi. Bong thoai chong
+        // lan nhau, nen phai to het nen roi moi ve het chu (xem drawPage).
+        val pristine = src.copy(Bitmap.Config.ARGB_8888, false)
         val canvas = Canvas(src)
+        val accepted = LinkedHashMap<Int, app.mangatrans.domain.Bubble>()
         val t0 = System.currentTimeMillis()
         var drawn = 0
+
+        fun repaint() {
+            canvas.drawBitmap(pristine, 0f, 0f, null)
+            drawn = BubbleRenderer.drawPage(canvas, accepted.values.toList(), typeface) {
+                BubbleRenderer.sampleBackground(pristine, it)
+            }
+            image.setImageBitmap(src)
+        }
 
         p.run(src).collect { ev ->
             when (ev) {
                 is PageEvent.Progress -> say("  ${ev.stage}${if (ev.total > 0) " ${ev.done}/${ev.total}" else ""}")
 
                 is PageEvent.BubbleReady -> {
-                    // AD-9: to nen roi moi ve chu — BubbleRenderer.draw lo thu tu do.
-                    if (BubbleRenderer.draw(canvas, ev.bubble, typeface) {
-                            BubbleRenderer.sampleBackground(src, it)
-                        }) drawn++
-                    image.setImageBitmap(src)   // FR-044: hien dan tung bubble
+                    accepted[ev.bubble.id] = ev.bubble
+                    repaint()   // FR-044: hien dan tung bubble
                 }
 
-                // AD-17: go bubble da ve. O man hinh nay ta ve lai tu anh goc.
-                is PageEvent.Retracted -> say("  ⚠ gỡ ${ev.bubbleIds.size} bubble: ${ev.reason}")
+                // AD-17 — go bubble DA VE. Bat buoc ho tro, khong phai ngoai le.
+                is PageEvent.Retracted -> {
+                    say("  ⚠ gỡ ${ev.bubbleIds.size} bubble: ${ev.reason}")
+                    ev.bubbleIds.forEach { accepted.remove(it) }
+                    repaint()   // ve lai tu anh goc => chu Nhat hien lai
+                }
 
-                is PageEvent.PageRejected -> say("  ✖ từ chối cả trang: ${ev.reason}")
+                is PageEvent.PageRejected -> {
+                    say("  ✖ từ chối cả trang: ${ev.reason}")
+                    accepted.clear()
+                    repaint()   // AD-9: toan bo tro ve nguyen ban
+                }
 
                 is PageEvent.Done -> {
                     val secs = (System.currentTimeMillis() - t0) / 1000.0

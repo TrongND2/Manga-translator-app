@@ -885,6 +885,49 @@ Prefill ~1000 token trên Snapdragon 778G ở 2 luồng mất **50–85 giây** 
 
 ---
 
+## F26 — Vẽ bubble phải làm HAI LƯỢT, không phải tô-và-vẽ từng cái
+
+**Bốn vòng sửa, mỗi vòng lộ ra một lỗi mà vòng trước che mất.** Không vòng nào phát hiện được bằng log — log luôn báo `12/12 bubble`. Phải **nhìn ảnh**.
+
+| Vòng | Triệu chứng | Nguyên nhân thật |
+|---|---|---|
+| 1 | Ô trắng chữ nhật đè lên tranh | Tô theo hộp chữ, bóng thoại hình tròn |
+| 2 | Chữ khổng lồ tràn sang bóng khác | `maxByOrNull { containedIn }` chọn bừa — nhiều vỏ cùng chứa trọn thì tỷ lệ đều 1.0 |
+| 3 | Vẫn tràn | Vỏ "nhỏ nhất chứa trọn" vẫn có thể là vỏ bao nhiều bóng |
+| 4 | **Mất chữ cuối** (`đấy.`) | **Bubble vẽ SAU tô nền đè lên CHỮ của bubble vẽ trước** |
+
+### Lỗi số 4 là lỗi gốc
+
+Bóng thoại **chồng lấn nhau**. Quy trình tô-rồi-vẽ từng bubble một:
+
+```
+bubble A: tô nền A → vẽ chữ A
+bubble B: tô nền B → vẽ chữ B     ← nền B xoá mất phần chữ A nằm trong vùng B
+```
+
+Đã thấy thật: `憎たらしいねェ` dịch đúng thành "Đáng ghét thật đấy." nhưng ảnh chỉ hiện "Đáng ghét thật" — chữ `đấy.` bị nền bóng bên cạnh xoá.
+
+### Lời giải: hai lượt
+
+```
+lượt 1: tô nền cho TẤT CẢ bubble đã có bản dịch
+lượt 2: vẽ chữ cho TẤT CẢ — không còn nền nào vẽ sau nữa
+```
+
+Vẫn giữ AD-9 (chỉ tô nền cho bubble **đã có** bản dịch) và AD-13 (hiện dần): mỗi lần có bubble mới thì **vẽ lại cả trang từ ảnh gốc**. Chi phí O(n²) với n=12 — không đáng kể.
+
+### Lợi ích kèm theo: AD-17 giờ hoạt động THẬT
+
+Trước đây `Retracted` chỉ in ra log. Với cơ chế vẽ-lại-từ-ảnh-gốc, nó thực sự gỡ được bubble: bỏ khỏi danh sách rồi vẽ lại → **chữ Nhật gốc hiện lại nguyên vẹn**. `PageRejected` cũng vậy — xoá hết rồi vẽ lại = toàn trang trở về nguyên bản.
+
+Đây là điều spine yêu cầu từ đầu (*"overlay BẮT BUỘC xử lý Retracted"*) mà cài đặt trước đó chưa làm được.
+
+### Quy tắc rút ra
+
+**Chỉ số đếm không thay được việc nhìn.** Cả bốn vòng, log đều báo `vẽ 12/12 bubble`. Nếu tin log thì đã kết luận xong từ vòng 1.
+
+---
+
 ## Còn nợ
 
 | # | Việc | Chặn gì | Trạng thái |

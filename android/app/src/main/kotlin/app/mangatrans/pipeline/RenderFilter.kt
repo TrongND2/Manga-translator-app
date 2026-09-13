@@ -47,46 +47,57 @@ object BubbleRenderer {
      * @param sample ham lay mau mau nen tu ben trong bubble
      * @return false neu khong ve duoc (khi do PHAI giu nguyen chu goc — AD-9)
      */
-    fun draw(
+    /**
+     * Ve CA TRANG bang HAI LUOT: to het nen truoc, roi moi ve het chu.
+     *
+     * Vi sao phai hai luot: bong thoai chong lan nhau. Neu to-va-ve tung bong
+     * mot thi o nen cua bong ve SAU se DE MAT CHU cua bong ve truoc — da thay
+     * that: "Đáng ghét thật đấy." bi mat chu "đấy." vi bong ben canh to de len.
+     *
+     * Van dung AD-9: chi to nen cho bong DA CO ban dich duoc chap nhan.
+     */
+    fun drawPage(
+        canvas: Canvas,
+        bubbles: List<Bubble>,
+        typeface: Typeface,
+        sample: (Box) -> Int,
+    ): Int {
+        val ready = bubbles.filter {
+            it.state == BubbleState.Accepted && !it.vi.isNullOrBlank() &&
+                it.box.width >= 8 && it.box.height >= 8
+        }
+        // Luot 1 — to het nen
+        ready.forEach { fillBackground(canvas, it, sample) }
+        // Luot 2 — ve het chu, khong con o nen nao de len nua
+        return ready.count { drawText(canvas, it, typeface, sample) }
+    }
+
+    private fun fillBackground(canvas: Canvas, bubble: Bubble, sample: (Box) -> Int) {
+        val b = bubble.box
+        val shell = bubble.shell
+        val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = sample(b); style = Paint.Style.FILL
+        }
+        if (shell != null) {
+            canvas.drawOval(
+                shell.x1.toFloat(), shell.y1.toFloat(),
+                shell.x2.toFloat(), shell.y2.toFloat(), fill
+            )
+        }
+        canvas.drawRect(b.x1.toFloat(), b.y1.toFloat(), b.x2.toFloat(), b.y2.toFloat(), fill)
+    }
+
+    private fun drawText(
         canvas: Canvas,
         bubble: Bubble,
         typeface: Typeface,
         sample: (Box) -> Int,
     ): Boolean {
-        // AD-9 — KHONG to nen neu chua co ban dich.
-        val vi = bubble.vi?.takeIf { it.isNotBlank() } ?: return false
-        if (bubble.state != BubbleState.Accepted) return false
-
+        val vi = bubble.vi ?: return false
         val b = bubble.box
-        if (b.width < 8 || b.height < 8) return false
-
-        // Vo bong thoai, neu GateFilter tim duoc. To theo vo thay vi theo hop chu:
-        // bong thoai hinh TRON, to hop chu nhat se de o trang len tranh (da thay
-        // that o anh render dau tien).
         val shell = bubble.shell
         val bg = sample(b)
-        val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = bg; style = Paint.Style.FILL }
 
-        // 1. to nen che chu goc — LUON TRUOC khi ve chu (AD-9)
-        if (shell != null) {
-            // Ellip noi tiep vo bong. Khong phai hinh dang chinh xac cua bong,
-            // nhung sat hon nhieu so voi hinh chu nhat.
-            canvas.drawOval(
-                shell.x1.toFloat(), shell.y1.toFloat(),
-                shell.x2.toFloat(), shell.y2.toFloat(), fill
-            )
-            // Vien bong thuong khong tron hoan toan; to them hop chu de chac chan
-            // khong con net chu goc tho ra. Hop chu nam GON trong vo nen an toan.
-            canvas.drawRect(
-                b.x1.toFloat(), b.y1.toFloat(), b.x2.toFloat(), b.y2.toFloat(), fill
-            )
-        } else {
-            canvas.drawRect(
-                b.x1.toFloat(), b.y1.toFloat(), b.x2.toFloat(), b.y2.toFloat(), fill
-            )
-        }
-
-        // 2. ve chu — chi sau khi da to nen
         val fg = if (isLight(bg)) Color.BLACK else Color.WHITE
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             this.typeface = typeface

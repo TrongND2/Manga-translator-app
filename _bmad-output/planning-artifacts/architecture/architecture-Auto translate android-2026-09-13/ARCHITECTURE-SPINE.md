@@ -171,7 +171,19 @@ Mũi tên là chiều **được phép phụ thuộc**. `domain` không trỏ đ
 
 - **Binds:** `pipeline.RenderFilter`, mọi cổng kiểm tra
 - **Prevents:** che mất chữ Nhật rồi không vẽ được gì — tệ hơn không làm gì (PRD FR-046)
-- **Rule:** `RenderFilter` chỉ tô nền che chữ gốc khi **đã có** bản dịch được chấp nhận cho đúng bubble đó. Thứ tự bắt buộc: có bản dịch → tô nền → vẽ chữ. Không bao giờ tô trước.
+- **Rule:** `RenderFilter` chỉ tô nền che chữ gốc khi **đã có** bản dịch được chấp nhận cho đúng bubble đó. Không bao giờ tô trước.
+- **Rule:** vẽ **HAI LƯỢT trên toàn trang**, không tô-rồi-vẽ từng bubble một:
+
+  ```
+  lượt 1: tô nền cho TẤT CẢ bubble đã có bản dịch
+  lượt 2: vẽ chữ cho TẤT CẢ
+  ```
+
+  **Vì sao:** bóng thoại **chồng lấn nhau**. Tô-rồi-vẽ từng cái thì nền của bubble vẽ sau **xoá mất chữ** của bubble vẽ trước. Đã thấy thật: `憎たらしいねェ` dịch đúng thành "Đáng ghét thật đấy." nhưng ảnh chỉ hiện "Đáng ghét thật" — chữ `đấy.` bị nền bóng bên cạnh xoá (`spike/FINDINGS.md` F26).
+
+- **Rule:** giữ **ảnh gốc chưa vẽ**. Mỗi lần có bubble mới thì vẽ lại cả trang từ ảnh gốc. Đây cũng là thứ làm **AD-17 hoạt động được**: `Retracted` bỏ bubble khỏi danh sách rồi vẽ lại ⇒ chữ Nhật gốc hiện lại nguyên vẹn. Không có ảnh gốc thì không gỡ được gì.
+
+- ⚠️ **Chỉ số đếm không thay được việc nhìn.** Qua bốn vòng sửa lỗi vẽ, log luôn báo `vẽ 12/12 bubble` trong khi ảnh sai rõ. Mỗi thay đổi ở `RenderFilter` phải kiểm bằng mắt trên ảnh thật.
 
 ### AD-10 — Lớp phủ chỉ vẽ, không bao giờ sửa app bên dưới
 

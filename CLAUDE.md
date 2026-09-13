@@ -92,7 +92,8 @@ Bản cài ở đây là **BMAD v6 — dạng skills**, không phải v4 dạng 
 | Thêm plugin `org.jetbrains.kotlin.android` | **AGP 9.0+ đã tích hợp sẵn Kotlin.** Thêm plugin này làm build thất bại |
 | Viết `local.properties` với `\` | File `.properties` coi `\` là escape (`
 ` = xuống dòng). Dùng `/` trong đường dẫn |
-| Viết file Kotlin/Gradle bằng heredoc bash | Heredoc nuốt `\`. Dùng công cụ Write cho file có ký tự escape |
+| Viết file Kotlin/Gradle bằng heredoc bash | Heredoc nuốt `\` — **kể cả heredoc đã quote `<< 'EOF'`**. Dùng công cụ Write/Edit cho file có ký tự escape |
+| Chạy script Python qua heredoc, script có chuỗi chứa `\` | Nuốt một lớp `\` rồi Python đọc lớp còn lại là escape: `\a` → BEL, `\b` → backspace. **Hỏng âm thầm** — file trông gần đúng, `grep` vẫn khớp, chỉ `cat -A` mới lộ. Đã mắc: `platform-tools\adb.exe` thành `platform-tools␇db.exe`. Nếu buộc phải dùng, dựng `\` bằng `chr(92)` và `assert chr(7) not in t` |
 | Dùng `java` trên PATH (26.0.2) | Dùng **JDK 25 đi kèm Android Studio**: `%ProgramFiles%\Android\Android Studio\jbr` |
 | Tìm LiteRT-LM trên Maven Central | Nó nằm trên **repo Maven của Google** (`google()`), không có trên Maven Central |
 | Kotlin của AGP (2.2.x) không đọc được metadata của LiteRT-LM (2.4.0) | Nâng KGP bằng `buildscript { dependencies { classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:2.4.20") } }` ở build file **gốc**. **Đừng** dùng `-Xskip-metadata-version-check` — nó giấu vấn đề và đẻ lỗi lúc chạy |
