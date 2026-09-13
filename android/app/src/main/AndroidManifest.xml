@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application
+        android:label="Manga Translator"
+        android:icon="@android:drawable/ic_menu_view"
+        android:theme="@style/Theme.AppCompat.DayNight">
+
+        <!--
+          AD-23 — BAT BUOC de backend GPU khoi tao duoc.
+          Tu Android 12, app phai khai bao tuong minh moi duoc dlopen thu vien
+          vendor, KE CA khi no da nam trong /vendor/etc/public.libraries.txt.
+          required=false: may khong co OpenCL van cai duoc, va tu lui ve CPU.
+
+          Luu y: khai bao nay chi lam GPU KHOI TAO duoc, KHONG bao dam no sinh
+          dung. Tren Adreno 642L, GPU khoi tao thanh cong roi sinh ra rac (AD-2).
+        -->
+        <uses-native-library android:name="libOpenCL.so" android:required="false" />
+        <uses-native-library android:name="libOpenCL-pixel.so" android:required="false" />
+        <uses-native-library android:name="libGLES_mali.so" android:required="false" />
+
+        <activity
+            android:name=".ui.MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

@@ -1,0 +1,47 @@
+# ── Mô hình: 4.3 GB, tải lại từ Hugging Face bằng spike/fetch_gemma4.py ──
+spike/models/
+*.litertlm
+*.onnx
+*.task
+
+# ── Ảnh truyện test: CÓ BẢN QUYỀN, không bao giờ đẩy lên ──
+Support test file/
+
+# ── Môi trường Python ──
+spike/.venv/
+__pycache__/
+*.pyc
+
+# ── Kết quả chạy spike (sinh lại được) ──
+spike/out/
+
+# ── Build artifact Android ──
+android/.gradle/
+android/build/
+android/app/build/
+android/bench/build/
+android/local.properties
+*.apk
+*.aab
+*.jks
+*.keystore
+
+# ── Thư mục benchmark cũ, đã chuyển vào android/bench/ ──
+benchmark/
+
+# ── Bản QA của công ty, không liên quan dự án này ──
+CLAUDE.md.company.bak
+
+# ── Công cụ BMAD cài sẵn: 1095 file, cài lại bằng `npx bmad-method install` ──
+.claude/skills/
+_bmad/
+_bmad-output/**/.memlog.md
+
+# ── Handoff: theo quy ước trong handoff/README.md, chỉ README được đẩy ──
+handoff/*.md
+!handoff/README.md
+
+# ── IDE ──
+.idea/
+*.iml
+.DS_Store

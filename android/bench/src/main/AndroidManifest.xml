@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application
+        android:label="MangaTrans Bench"
+        android:icon="@android:drawable/ic_menu_info_details"
+        android:theme="@style/Theme.AppCompat.DayNight">
+
+        <!--
+          BAT BUOC de backend GPU cua LiteRT-LM hoat dong.
+
+          Tu Android 12 (API 31), app phai KHAI BAO tuong minh moi duoc dlopen
+          thu vien vendor, ke ca khi thu vien do da nam trong
+          /vendor/etc/public.libraries.txt.
+
+          Thieu dong nay, LiteRT-LM nem:
+            FAILED_PRECONDITION: Can not find OpenCL library on this device
+          ...ngay ca khi /vendor/lib64/libOpenCL.so TON TAI tren may.
+          Da xac nhan tren Galaxy M52 (SM7325, Adreno 642L): file co that,
+          co trong public.libraries.txt, nhung app van khong thay neu thieu khai bao.
+
+          required="false" de app van cai duoc tren may khong co OpenCL
+          (vi du may ao) va tu lui ve CPU theo AD-2.
+        -->
+        <uses-native-library android:name="libOpenCL.so" android:required="false" />
+        <!-- Mot so hang dat ten khac; khai bao them cho chac, deu required=false. -->
+        <uses-native-library android:name="libOpenCL-pixel.so" android:required="false" />
+        <uses-native-library android:name="libGLES_mali.so" android:required="false" />
+
+        <activity
+            android:name=".BenchActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- Story 1.3: chay bang
+             adb shell am start -n app.mangatrans.bench/.QualityActivity -->
+        <activity
+            android:name=".QualityActivity"
+            android:exported="true" />
+
+        <!-- Story 1.4: adb shell am start -n app.mangatrans.bench/.StressActivity -->
+        <activity
+            android:name=".StressActivity"
+            android:exported="true"
+            android:keepScreenOn="true" />
+
+        <!-- Do maxNumTokens vs RAM: am start -n app.mangatrans.bench/.MemActivity -->
+        <activity
+            android:name=".MemActivity"
+            android:exported="true" />
+
+        <!-- Do so luong CPU thread vs nhiet: am start -n app.mangatrans.bench/.ThermalActivity -->
+        <activity
+            android:name=".ThermalActivity"
+            android:exported="true" />
+    </application>
+</manifest>

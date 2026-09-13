@@ -1,0 +1,68 @@
+plugins {
+    // AGP 9.0+ da tich hop san Kotlin. Them org.jetbrains.kotlin.android lam build hong.
+    alias(libs.plugins.android.application)
+}
+
+android {
+    namespace = "app.mangatrans"
+    compileSdk = 36
+
+    defaultConfig {
+        applicationId = "app.mangatrans"
+        minSdk = 29          // Android 10
+        targetSdk = 36
+        versionCode = 1
+        versionName = "0.1"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    buildTypes {
+        release { isMinifyEnabled = false }
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    sourceSets["main"].kotlin.directories.add("src/main/kotlin")
+    sourceSets["test"].kotlin.directories.add("src/test/kotlin")
+
+    packaging { jniLibs { useLegacyPackaging = false } }
+
+    /**
+     * NFR-008: APK <= 100 MB.
+     *
+     * Native lib cua LiteRT-LM + ONNX Runtime rat nang. Neu gop ca 4 ABI thi
+     * APK = 128.3 MB (arm64 38.4 + x86_64 45.0 + armeabi-v7a 12.5 + x86 20.1).
+     *
+     * Dien thoai that deu la arm64-v8a; x86_64 chi dung cho MAY AO.
+     * 32-bit khong du RAM cho model 2.6 GB nen bo han.
+     *
+     * Tach APK theo ABI: moi ban chi mang lib cua chinh no.
+     */
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a", "x86_64")   // may that + may ao
+            isUniversalApk = false
+        }
+    }
+
+    // Khong dat them `ndk.abiFilters`: AGP cam dung dong thoi voi `splits.abi`.
+    // Chi rieng `splits` da du — no vua tach APK vua loai ABI khong liet ke.
+    // 32-bit bi loai vi khong du RAM cho model 2.6 GB (da do: RSS ~3.2 GB).
+}
+
+dependencies {
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.appcompat)
+    implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.litertlm.android)
+    implementation(libs.onnxruntime.android)
+
+    testImplementation(libs.junit)
+    testImplementation(libs.json)
+    testImplementation(libs.kotlinx.coroutines.test)
+}
