@@ -10,6 +10,7 @@ import app.mangatrans.ports.GlossaryEntry
 import app.mangatrans.ports.GlossaryKind
 import app.mangatrans.ports.GlossaryStatus
 import app.mangatrans.ports.GlossaryStore
+import app.mangatrans.ports.isUsableSurface
 import app.mangatrans.ports.OcrEngine
 import app.mangatrans.ports.PageCache
 import app.mangatrans.ports.PageImage
@@ -105,8 +106,11 @@ class Pipeline(
         if (done != null) {
             cache.put(done.contentKey, boxes, done.bubbles)
             // AD-8: de xuat glossary tu `speaker` LLM von da tra ve — chi phi bang 0.
+            // `surface` phai la chu xuat hien trong nguyen ban tieng Nhat, khong
+            // thi khong bao gio khop. Da thay that: LLM tra `speaker` = "Người
+            // nói 1" / "Rurimaru" — rac thuan tuy (ports.isUsableSurface).
             done.bubbles.mapNotNull { it.speaker }
-                .filter { it.isNotBlank() && it != "?" }
+                .filter { isUsableSurface(it) }
                 .toSet()
                 .forEach { name ->
                     glossary.propose(GlossaryEntry(

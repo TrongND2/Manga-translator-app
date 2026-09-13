@@ -4,6 +4,7 @@ import app.mangatrans.ports.GlossaryEntry
 import app.mangatrans.ports.GlossaryKind
 import app.mangatrans.ports.GlossaryStatus
 import app.mangatrans.ports.GlossaryStore
+import app.mangatrans.ports.isUsableSurface
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -129,7 +130,7 @@ object GlossaryMiner {
 
         // (a) speaker lap lai — nguon tin cay nhat, LLM da suy ra giup.
         speakersPerPage.flatMap { it }
-            .filter { it.isNotBlank() && it != "?" }
+            .filter { isUsableSurface(it) }
             .groupingBy { it }.eachCount()
             .filterValues { it >= minPages }
             .keys.forEach { out += it to GlossaryKind.ProperNoun }

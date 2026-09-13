@@ -928,6 +928,35 @@ Trước đây `Retracted` chỉ in ra log. Với cơ chế vẽ-lại-từ-ản
 
 ---
 
+## F27 — Mục glossary tự đề xuất là RÁC, đo trên chính máy thật
+
+Sau bốn trang dịch trên M52, `glossary.json` trên máy có **ba** mục `Proposed`, và **cả ba đều vô dụng**:
+
+| Mục app tự đề xuất | Vì sao vô dụng |
+|---|---|
+| `"Người nói 1"` | nhãn placeholder **tiếng Việt** do LLM bịa ra cho trường `speaker` |
+| `"Người nói 2"` | như trên |
+| `"Rurimaru"` | dạng **La-tinh**, trùng với mục `瑠璃丸` đã xác nhận |
+
+Tỷ lệ hữu ích: **0/3**.
+
+### Vì sao chúng vô dụng — và vì sao nó nguy hiểm
+
+`surface` là **dạng chữ xuất hiện trong nguyên bản tiếng Nhật**. Glossary chỉ có tác dụng khi nó khớp được với chữ trên trang. Chuỗi không có ký tự Nhật nào thì **không bao giờ khớp** — nó chỉ ngồi trong prompt làm nhiễu.
+
+Nguy hiểm ở chỗ: nếu mục đề xuất tự động vào prompt (không có cổng xác nhận), thì chỉ sau vài trang, prompt sẽ đầy nhãn placeholder. LLM sẽ dùng chúng **nhất quán và trôi chảy** — đúng kiểu lỗi AD-4 mô tả: mọi kiểm tra tự động đều xanh, bản dịch đọc mượt, mà sai xuyên suốt.
+
+### Đã chặn ở hai lớp
+
+1. **Tại nguồn** — `ports.isUsableSurface()`: `surface` phải chứa ít nhất một ký tự hiragana / katakana / kanji. Đặt ở `ports` chứ không ở `adapters`, vì cả `pipeline` (lúc đề xuất) lẫn `GlossaryMiner` đều cần, mà `pipeline` không được phép biết đến `adapters`.
+2. **Tại cổng xác nhận** — AD-8 vốn đã có: mục `Proposed` không vào prompt cho tới khi người dùng bấm ✓. Lớp này đã làm đúng việc của nó ở đây: ba mục rác **không** lọt vào bản dịch nào.
+
+### Quy tắc rút ra
+
+**Cổng xác nhận đã cứu, nhưng chỉ vì có người đi đọc dữ liệu thật.** Ba mục rác nằm yên trong file suốt nhiều phiên mà không log nào báo gì — chúng chỉ lộ ra khi `cat` file glossary trên máy. Nguồn dữ liệu nào do model sinh ra thì phải đi xem tận nơi nó đẻ ra cái gì, đừng chỉ xem nó có chạy không.
+
+---
+
 ## Còn nợ
 
 | # | Việc | Chặn gì | Trạng thái |

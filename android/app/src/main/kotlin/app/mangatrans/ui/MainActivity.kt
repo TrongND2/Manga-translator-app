@@ -78,6 +78,11 @@ class MainActivity : AppCompatActivity() {
             text = "Dùng ảnh mẫu (/data/local/tmp/test_page.jpg)"
             setOnClickListener { translateFile(File(TMP, "test_page.jpg")) }
         }
+        // FR-033/FR-034 — sau moi trang dich, muc tu de xuat don o day cho xac nhan.
+        val glossaryBtn = Button(this).apply {
+            text = "Từ điển riêng"
+            setOnClickListener { startActivity(GlossaryActivity.intent(this@MainActivity)) }
+        }
         image = ImageView(this).apply {
             adjustViewBounds = true
             minimumHeight = 400
@@ -88,9 +93,17 @@ class MainActivity : AppCompatActivity() {
             addView(LinearLayout(this@MainActivity).apply {
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER_HORIZONTAL
-                addView(pickBtn); addView(sampleBtn); addView(log); addView(image)
+                addView(pickBtn); addView(sampleBtn); addView(glossaryBtn)
+                addView(log); addView(image)
             })
         })
+
+        // GlossaryActivity de exported=false (dung), nen khong mo thang bang adb
+        // duoc. Mo qua day de kiem tra tay:
+        //   adb shell am start -n app.mangatrans/.ui.MainActivity --ez glossary true
+        if (intent?.getBooleanExtra("glossary", false) == true) {
+            startActivity(GlossaryActivity.intent(this))
+        }
 
         lifecycleScope.launch {
             setup()
@@ -156,7 +169,9 @@ class MainActivity : AppCompatActivity() {
 
         // Nap san glossary neu co file mau — F9 da do: glossary keo 46% -> 60%.
         //   adb push glossary_seed.json /data/local/tmp/
-        val glossaryFile = File(filesDir, "glossary.json")
+        // Mot cho duy nhat quyet dinh glossary nam o dau — GlossaryActivity mo
+        // dung file nay. Viet lai chuoi "glossary.json" o day la loi chia doi.
+        val glossaryFile = GlossaryActivity.file(this@MainActivity)
         val seed = File(TMP, "glossary_seed.json")
         if (seed.exists() && !glossaryFile.exists()) {
             glossaryFile.parentFile?.mkdirs()

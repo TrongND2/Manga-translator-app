@@ -27,5 +27,11 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Story 2.8/2.9 — FR-033 xem/sua, FR-034 xac nhan muc tu de xuat. -->
+        <activity
+            android:name=".ui.GlossaryActivity"
+            android:label="Từ điển riêng"
+            android:exported="false" />
     </application>
 </manifest>

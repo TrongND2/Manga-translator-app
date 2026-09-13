@@ -102,6 +102,26 @@ enum class GlossaryStatus {
     Confirmed,
 }
 
+/** Hiragana, katakana, kanji. */
+private val JAPANESE = Regex("[\u3040-\u30FF\u4E00-\u9FFF]")
+
+/**
+ * `surface` la dang chu xuat hien trong NGUYEN BAN tieng Nhat — glossary chi co
+ * tac dung khi no khop duoc voi chu tren trang. Chuoi khong co ky tu Nhat nao
+ * thi khong bao gio khop, chi lam ban prompt.
+ *
+ * KHONG phai lo xa, da thay that tren may: truong `speaker` do LLM tra ve sinh
+ * ra `"Nguoi noi 1"`, `"Nguoi noi 2"` (nhan placeholder tieng Viet) va
+ * `"Rurimaru"` (dang La-tinh, trung voi muc `瑠璃丸` da xac nhan). Ba muc rac
+ * chi sau mot lan chay bon trang.
+ *
+ * De o `ports` chu khong o `adapters`: ca `pipeline` (luc de xuat) va
+ * `adapters.storage` (GlossaryMiner) deu can, ma `pipeline` khong duoc phep
+ * biet den `adapters`.
+ */
+fun isUsableSurface(s: String): Boolean =
+    s.isNotBlank() && s != "?" && JAPANESE.containsMatchIn(s)
+
 /** Nguon anh. Buoc 0. */
 interface ScreenSource {
     /**

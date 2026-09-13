@@ -20,7 +20,7 @@ App Android dịch manga tiếng Nhật sang tiếng Việt **ngay trên máy**,
 | RAM | ~3.2 GB (mmap, không bị OOM-kill) |
 | Nhiệt | 58–62 °C (2 luồng CPU) |
 | APK | 50.9 MB |
-| Unit test | 27 / 27 xanh |
+| Unit test | 36 / 36 xanh |
 
 ---
 
@@ -72,7 +72,7 @@ Dự án bắt đầu bằng một Project Brief. Sau khi đo thật trên phầ
 | Ngưỡng 40 s/trang | **Bất khả thi** trên phần cứng này |
 | Gói ~3 GB cần 8 GB RAM | Gần đúng |
 
-Toàn bộ 25 phát hiện, mỗi cái kèm phép đo, ở [`spike/FINDINGS.md`](spike/FINDINGS.md).
+Toàn bộ 27 phát hiện, mỗi cái kèm phép đo, ở [`spike/FINDINGS.md`](spike/FINDINGS.md).
 
 ---
 
@@ -133,7 +133,7 @@ android/
   bench/               app đo hiệu năng trên máy thật
 
 spike/                 script đo trên PC — không phải code app
-  FINDINGS.md          25 phát hiện, mỗi cái kèm phép đo
+  FINDINGS.md          27 phát hiện, mỗi cái kèm phép đo
 docs/brief.md          Project Brief ban đầu
 _bmad-output/          PRD · architecture spine (25 AD) · 4 epic / 32 story
 ```
