@@ -86,6 +86,11 @@ class Pipeline(
             }
         val boxes = job.bubbles.map { it.box }
         job = job.copy(contentKey = PageHash.contentKey(bitmap, boxes))
+        // Story 3.3 — bang chung cho "anh chup sach": dich cung mot trang hai lan
+        // lien tiep phai cho contentKey GIONG HET. Neu lan hai chup trung ban
+        // dich vua ve thi vung bubble da khac, va hash se khac ngay.
+        // Hash chu khong phai noi dung — ghi duoc.
+        android.util.Log.i("Pipeline", "contentKey=${job.contentKey.take(16)}")
 
         // --- cache: TRUOC khi nap engine (AD-24) ---
         cache.get(job.contentKey, boxes)?.let { cached ->

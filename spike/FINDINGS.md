@@ -1146,6 +1146,32 @@ Và bấm HOME (đổi thật) vẫn gỡ đúng: `noi dung ben duoi doi — go 
 
 ---
 
+## F33 — Chứng minh "ảnh chụp sạch" bằng hash, không bằng mắt
+
+AD-11 đòi `ScreenSource.capture()` tự ẩn icon và mọi lớp phủ trước khi chụp. Nếu hỏng thì OCR sẽ đọc lại **chính chữ Việt app vừa vẽ** rồi dịch tiếng Việt sang tiếng Việt — và kết quả vẫn trông trôi chảy, vẫn đủ 12 bubble. Nhìn ảnh không đủ để phân biệt.
+
+### Phép thử có tín hiệu rõ ràng
+
+Dịch **cùng một trang hai lượt liên tiếp**, lượt hai chạy **trong khi bản dịch lượt một vẫn đang hiện trên màn hình**. So `contentKey` — hash tính trên đúng các vùng bubble đã phát hiện:
+
+| | lượt 1 | lượt 2 |
+|---|---|---|
+| `contentKey` | `e70f4c0d573f9d47` | **`e70f4c0d573f9d47`** |
+| gate | 26 vùng, 11 vỏ bóng | 26 vùng, 11 vỏ bóng |
+| vẽ | 12 bubble | 12 bubble |
+
+Hash **giống hệt**. Nếu lớp phủ lọt vào ảnh chụp thì nội dung trong vùng bubble đã khác, và `contentKey` phải khác — nó được thiết kế đúng để nhạy với chỗ đó.
+
+### Vì sao chọn `contentKey` chứ không phải `frameHash`
+
+`frameHash` tính trên **cả khung hình**, nên đồng hồ nhảy phút cũng làm nó đổi — không dùng làm bằng chứng được. `contentKey` chỉ tính trên vùng bubble, trên ảnh đã hạ mẫu, nên nó bỏ qua đồng hồ và mức pin nhưng **không** bỏ qua chữ vẽ đè trong bóng thoại. Đúng hai vai, đúng AD-18.
+
+### Quy tắc rút ra
+
+**Khi lỗi và không-lỗi trông giống nhau, đừng kiểm bằng mắt — tìm một đại lượng mà chúng khác nhau.** Nối tiếp F31: ở đó tôi nhìn ảnh ba vòng và đọc sai nguyên nhân ba lần. Ở đây phép thử được thiết kế sao cho câu trả lời là một phép so sánh chuỗi, không phải một phán đoán thị giác.
+
+---
+
 ## Còn nợ
 
 | # | Việc | Chặn gì | Trạng thái |
