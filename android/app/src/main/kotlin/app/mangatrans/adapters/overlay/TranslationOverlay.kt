@@ -27,9 +27,6 @@ import app.mangatrans.pipeline.BubbleRenderer
 class TranslationOverlay(
     private val ctx: Context,
     private val wm: WindowManager,
-    /** Story 3.6 — cham giu trong vung bubble de liec nguyen ban. */
-    private val onPeekStart: () -> Unit = {},
-    private val onPeekEnd: () -> Unit = {},
 ) {
 
     /**
@@ -117,10 +114,12 @@ class TranslationOverlay(
         detach()
     }
 
-    /** Story 3.6 — an tam trong luc nguoi dung giu de liec nguyen ban. */
+    /**
+     * Story 3.6 — an tam trong luc nguoi dung giu de liec nguyen ban.
+     * `PeekTargets` goi vao day; lop nay khong biet cu chi duoc nhan o dau.
+     */
     fun setPeeking(peeking: Boolean) {
         view.visibility = if (peeking) View.INVISIBLE else View.VISIBLE
-        if (peeking) onPeekStart() else onPeekEnd()
     }
 
     /** AD-11 — an tam de chup. */
@@ -171,8 +170,8 @@ class TranslationOverlay(
      * `ViewTreeObserver.OnComputeInternalInsetsListener` va `InternalInsetsInfo`
      * la API `@hide`, khong co trong SDK cong khai.
      *
-     * Nen Story 3.6 (cham giu de liec nguyen ban) se can cac cua so nho RIENG
-     * dat de len tung bubble — chua lam.
+     * Nen Story 3.6 (cham giu de liec nguyen ban) dung cac cua so nho RIENG dat
+     * de len tung bubble — xem `PeekTargets`.
      */
     private fun params() = WindowManager.LayoutParams(
         WindowManager.LayoutParams.MATCH_PARENT,

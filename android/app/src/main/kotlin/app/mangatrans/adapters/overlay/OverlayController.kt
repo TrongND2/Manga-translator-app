@@ -29,8 +29,24 @@ class OverlayController(
     val icon = FloatingIcon(ctx, wm, onTap = onTap, onGuide = onGuide, onClose = onClose)
     val translation = TranslationOverlay(ctx, wm)
 
+    /**
+     * ⚠️ App TU lam man hinh doi trong hai truong hop: dang liec nguyen ban
+     * (Story 3.6) va dang an lop phu de chup (AD-11).
+     *
+     * Bo canh cua Story 3.7 phai bo qua nhung luc nay, neu khong no se tuong
+     * nguoi dung sang trang va **xoa mat ban dich**.
+     *
+     * Da xay ra that: cham giu de liec -> lop phu an di -> bo canh thay man hinh
+     * doi -> xoa ca trang. Tha tay ra thi ban dich mat han. Hai story tu danh
+     * nhau, va ca hai deu "dung" neu xet rieng.
+     */
+    val selfChanging = java.util.concurrent.atomic.AtomicBoolean(false)
+
     /** Story 3.6 — cac cua so nho nhan cham giu tren tung bubble. */
-    private val peek = PeekTargets(ctx, wm) { peeking -> translation.setPeeking(peeking) }
+    private val peek = PeekTargets(ctx, wm) { peeking ->
+        selfChanging.set(peeking)
+        translation.setPeeking(peeking)
+    }
 
     fun show() = icon.show()
 
@@ -53,6 +69,7 @@ class OverlayController(
      * nhanh loi quen goi la nguoi dung mat sach giao dien ma khong hieu vi sao.
      */
     override suspend fun <T> hiddenForCapture(block: suspend () -> T): T {
+        selfChanging.set(true)
         withContext(Dispatchers.Main) {
             icon.setVisibleForCapture(false)
             translation.setVisibleForCapture(false)
@@ -66,6 +83,7 @@ class OverlayController(
                 translation.setVisibleForCapture(true)
                 peek.setVisibleForCapture(true)
             }
+            selfChanging.set(false)
         }
     }
 

@@ -161,6 +161,22 @@ class MediaProjectionSource(
         }
     }
 
+    /**
+     * Vut bo moi frame dang xep hang.
+     *
+     * `ImageReader` giu toi da `MAX_IMAGES` anh, nen `acquireLatestImage()` co
+     * the tra ve anh chup tu VAI TRAM MILI GIAY TRUOC. Sau khi app tu lam man
+     * hinh doi (an lop phu de liec hoac de chup), nhung frame cu do la anh cua
+     * trang thai DA QUA — lay chung lam moc so sanh se sai ngay.
+     *
+     * Da xay ra that: tha tay sau khi liec nguyen ban thi frame cu (luc dang an)
+     * thanh moc, frame moi (da hien lai) khac moc do, va lop phu bi xoa mat.
+     */
+    fun drainFrames() {
+        val r = reader ?: return
+        repeat(MAX_IMAGES + 1) { runCatching { r.acquireLatestImage()?.close() } }
+    }
+
     private suspend fun grabFrame(): Bitmap {
         val r = reader ?: throw CaptureException(CaptureFailure.NoPermission)
 

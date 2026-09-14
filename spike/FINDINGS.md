@@ -1097,6 +1097,55 @@ Thứ cắt đứt được vòng lặp là **một con số**: 153 so với 76.
 
 ---
 
+## F32 — Hai tính năng đều đúng, ghép lại thì tự huỷ nhau
+
+Story 3.6 (chạm giữ để liếc nguyên bản) và Story 3.7 (lớp phủ tự biến mất khi sang trang) viết riêng đều chạy đúng. Ghép vào thì:
+
+```
+chạm giữ  →  lớp phủ ẩn đi để lộ chữ Nhật
+          →  bộ canh của 3.7 thấy màn hình đổi
+          →  tưởng người dùng sang trang  →  XOÁ CẢ TRANG
+thả tay   →  bản dịch mất hẳn
+```
+
+Không lỗi nào sai theo tiêu chí của chính nó. 3.7 làm **đúng** việc nó được giao: màn hình đổi thì gỡ lớp phủ. Nó chỉ không phân biệt được *ai* làm màn hình đổi.
+
+### Vòng một: đánh dấu "app tự làm đổi" — vẫn hỏng
+
+Thêm cờ `selfChanging`, bộ canh bỏ qua khi cờ bật. Chạy lại: **vẫn bị xoá**.
+
+### Vòng hai: `ImageReader` giữ frame cũ
+
+`ImageReader` đệm tới `MAX_IMAGES` ảnh. Sau khi thả tay:
+
+```
+t=0     thả tay, cờ selfChanging hạ, lớp phủ hiện lại
+t=+ε    bộ canh gọi acquireLatestImage()
+        → trả về frame chụp LÚC ĐANG ẨN (còn nằm trong hàng đợi)
+        → lấy làm mốc so sánh
+t=+350  frame mới (đã hiện lại) khác mốc  →  XOÁ
+```
+
+Mốc so sánh là ảnh của **trạng thái đã qua**. ⇒ Khi cờ hạ: **vứt hết frame đang xếp hàng**, chờ một nhịp, vứt lần nữa, rồi mới lấy mốc.
+
+### Đo sau khi sửa
+
+| | kích thước ảnh chụp màn hình |
+|---|---|
+| trước khi giữ | 2 286 234 |
+| **đang giữ** | 2 314 428 ← chữ Nhật gốc hiện |
+| sau khi thả | **2 286 234** ← bằng đúng lúc trước |
+
+Và bấm HOME (đổi thật) vẫn gỡ đúng: `noi dung ben duoi doi — go lop phu`.
+
+### Quy tắc rút ra
+
+**Một bộ phát hiện thay đổi phải biết phân biệt thay đổi do mình gây ra.** Bất kỳ tính năng nào về sau cũng tự làm màn hình đổi — hiện hộp thoại, đổi trạng thái icon, chớp một hiệu ứng — và mỗi cái sẽ lại giết lớp phủ theo đúng cách này. Cờ `selfChanging` là chỗ chung để khai báo, không phải vá riêng cho Story 3.6.
+
+**Và: hàng đợi frame làm cho "hiện tại" không phải hiện tại.** Cờ hạ không có nghĩa là ảnh tiếp theo đã phản ánh trạng thái mới. Đây là biến thể của cùng một sai lầm ở F31 — giả định về thời điểm/vị trí thay vì đo nó.
+
+---
+
 ## Còn nợ
 
 | # | Việc | Chặn gì | Trạng thái |

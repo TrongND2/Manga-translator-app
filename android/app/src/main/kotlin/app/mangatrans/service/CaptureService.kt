@@ -297,15 +297,34 @@ class CaptureService : Service() {
             // hash doi va lop phu tu xoa minh ngay lap tuc.
             delay(SETTLE_MS)
             var baseline: String? = null
+            var wasSelfChanging = false
             while (isActive && src.isAlive) {
-                val now = src.peekFrameHash()
-                if (now != null) {
-                    if (baseline == null) {
-                        baseline = now
-                    } else if (now != baseline) {
-                        Log.i(TAG, "noi dung ben duoi doi — go lop phu")
-                        overlays?.clearPage()
-                        return@launch
+                val ov = overlays ?: return@launch
+                if (ov.selfChanging.get()) {
+                    // App dang tu lam man hinh doi (liec nguyen ban, hoac an lop
+                    // phu de chup). Bo moc cu va lay moc moi khi xong — neu
+                    // khong thi chinh app lam mat ban dich cua no.
+                    baseline = null
+                    wasSelfChanging = true
+                } else if (wasSelfChanging) {
+                    // Vua thoi tu-lam-doi. KHONG lay moc ngay: `ImageReader` con
+                    // giu frame cua trang thai DA QUA (luc dang an lop phu), va
+                    // lay chung lam moc se khien lop phu tu xoa minh o vong sau.
+                    wasSelfChanging = false
+                    src.drainFrames()
+                    delay(SETTLE_MS)
+                    src.drainFrames()
+                    baseline = null
+                } else {
+                    val now = src.peekFrameHash()
+                    if (now != null) {
+                        if (baseline == null) {
+                            baseline = now
+                        } else if (now != baseline) {
+                            Log.i(TAG, "noi dung ben duoi doi — go lop phu")
+                            ov.clearPage()
+                            return@launch
+                        }
                     }
                 }
                 delay(POLL_MS)
