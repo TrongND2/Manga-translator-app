@@ -1235,7 +1235,22 @@ Code cũ làm ngược hai bước cuối.
 
 Hai máy khác nhau cả kích thước màn hình lẫn chiều cao status bar, nên đây cũng là phép kiểm thật cho bản sửa offset tự-đo của F31.
 
-⚠️ **Android 14+ cho người dùng chọn "chia sẻ một app" thay vì cả màn hình.** Chọn thế thì nội dung chụp được là app đó chứ không phải màn hình — chưa kiểm đường này.
+### Chip "đang chia sẻ màn hình" — kiểm bằng toạ độ, không bằng cảm giác
+
+AD-11 nói từ Android 15 QPR1 hệ điều hành vẽ một chip mà app **không ẩn được**. Trên máy ảo nó hiện thật: một viên thuốc đỏ `⬆ 00:25` ở status bar.
+
+| | Android 16 (status bar **145 px**) | M52 (status bar 76 px) |
+|---|---|---|
+| Vùng cao nhất phát hiện được | `shell y = 257` | `shell y = 401` |
+| Chip nằm ở | màn hình y ≈ 35–105 | *(không có chip)* |
+
+Cắt 145 dòng đầu là bỏ trọn dải chứa chip, và **không vùng nào** được phát hiện ở trên y = 257.
+
+Tiện thể đây cũng là phép kiểm chéo cho F31: cùng một trang, hai máy khác cả kích thước màn hình lẫn chiều cao status bar, mà toạ độ `x` của bubble #1 trùng khít (894 ở cả hai). Nếu offset còn bị đoán thay vì đo thì hai con số đã lệch nhau.
+
+⚠️ **Android 14+ cho người dùng chọn "chia sẻ một app" thay vì cả màn hình.** Chọn thế thì nội dung chụp được là app đó chứ không phải màn hình — **chưa kiểm đường này**.
+
+⚠️ **Không có số hiệu năng nào trong mục này lấy từ máy ảo** (AD-22). Máy ảo x86 chạy ONNX + LLM chậm hơn máy thật nhiều bậc; lượt dịch trên đó kẹt ở bước OCR hơn mười phút. Điều đó **không nói gì** về máy thật.
 
 ### Quy tắc rút ra
 
