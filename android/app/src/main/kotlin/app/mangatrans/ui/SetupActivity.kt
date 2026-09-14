@@ -197,7 +197,7 @@ class SetupActivity : AppCompatActivity() {
         // no lay tong ca goi. Nhin tren may moi thay: bon file kia da co san
         // (day tay bang adb push), chi thieu detector.
         val missing = m.files.filter { store.find(it.name) == null }
-        val need = missing.sumOf { it.sizeBytes - store.bytesOnDisk(it.name) }
+        val need = remaining(m)
 
         status.text =
             if (have > 0) "Đang dở: còn ${human(need)} nữa."
@@ -227,6 +227,11 @@ class SetupActivity : AppCompatActivity() {
      * Truoc do chia cung cho 1e6 nen `vocab.txt` hien la "0 MB" — dung ve so
      * hoc, vo nghia voi nguoi doc.
      */
+    /** So byte THUC SU con phai tai — dung chung cho moi cho noi ve dung luong. */
+    private fun remaining(m: PackageManifest): Long =
+        m.files.filter { store.find(it.name) == null }
+            .sumOf { it.sizeBytes - store.bytesOnDisk(it.name) }
+
     private fun human(bytes: Long): String = when {
         bytes >= 1_000_000_000L -> "%.1f GB".format(bytes / 1e9)
         bytes >= 1_000_000L -> "%d MB".format(bytes / 1_000_000)
@@ -256,7 +261,9 @@ class SetupActivity : AppCompatActivity() {
                 "Máy này có %.1f GB RAM. Đo trên máy thật, mô hình dịch chiếm khoảng ".format(ramGb) +
                     "3,2 GB khi đang chạy, nên máy dưới %.0f GB thường bị Android tắt app giữa chừng.\n\n"
                         .format(MIN_RAM_GB) +
-                    "Gói tải về nặng %.1f GB. Bạn vẫn muốn tải chứ?".format(m.totalGigabytes)
+                    // Noi so THUC SU con phai tai, khong phai tong ca goi —
+                    // cung loi da sua o `showNeedsDownload`, lap lai o day.
+                    "Còn phải tải ${human(remaining(m))}. Bạn vẫn muốn tải chứ?"
             )
             .setNegativeButton("Thôi", null)
             .setPositiveButton("Vẫn tải") { _, _ -> startDownload(m) }
@@ -317,9 +324,7 @@ class SetupActivity : AppCompatActivity() {
         detail.text = when (f) {
             DownloadFailure.NoNetwork -> "Nối mạng lại rồi bấm Thử lại — nó tiếp từ chỗ dở."
             DownloadFailure.NotEnoughSpace ->
-                "Cần khoảng %.1f GB trống. Xoá bớt rồi thử lại.".format(
-                    (manifest?.totalGigabytes ?: 0.0)
-                )
+                "Cần khoảng ${human(manifest?.let { remaining(it) } ?: 0L)} trống. Xoá bớt rồi thử lại."
             is DownloadFailure.ChecksumMismatch -> "Bấm Thử lại để tải lại đúng file đó."
             else -> "Bấm Thử lại."
         }
@@ -336,7 +341,7 @@ class SetupActivity : AppCompatActivity() {
         AlertDialog.Builder(this@SetupActivity)
             .setTitle("Xoá gói mô hình?")
             .setMessage(
-                "Sẽ giải phóng %.1f GB.\n\n".format(bytes / 1e9) +
+                "Sẽ giải phóng ${human(bytes)}.\n\n" +
                     "Sau khi xoá, app không dịch được nữa cho tới khi tải lại.\n\n" +
                     "Từ điển riêng và các trang đã dịch KHÔNG bị xoá."
             )
@@ -346,7 +351,7 @@ class SetupActivity : AppCompatActivity() {
                     val freed = store.deletePackage()
                     android.widget.Toast.makeText(
                         this@SetupActivity,
-                        "Đã giải phóng %.1f GB".format(freed / 1e9),
+                        "Đã giải phóng ${human(freed)}",
                         android.widget.Toast.LENGTH_LONG,
                     ).show()
                     deleteBtn.visibility = android.view.View.GONE
