@@ -4,19 +4,13 @@ Dịch manga tiếng Nhật sang tiếng Việt **ngay trên điện thoại And
 
 Mở trang truyện → chạm icon nổi → bản dịch hiện đè lên, ngay trong bóng thoại.
 
-Không server, không tài khoản, không API trả phí. Sau khi tải gói mô hình một lần, **tắt mạng vẫn dịch được**. Ảnh màn hình và bản dịch không rời khỏi máy.
+Không server, không tài khoản. Sau khi tải gói mô hình một lần, **tắt mạng vẫn dịch được**. Ảnh màn hình và bản dịch không rời khỏi máy.
 
-**[⬇ Tải APK](../../releases/latest)**
+**[⬇ Tải APK](../../releases/latest)** · Android 10+ · ~4 GB trống · nên có 6 GB RAM
 
 ---
 
-## Yêu cầu
-
-- Android 10 trở lên
-- ~4 GB dung lượng trống (gói mô hình 2,7 GB, tải một lần)
-- Nên có 6 GB RAM trở lên
-
-## Dùng thế nào
+## Cách dùng
 
 1. Cài APK, mở app → **Bật icon dịch màn hình**
 2. Mở app đọc truyện, **chạm icon** → cho phép chụp màn hình
@@ -24,25 +18,17 @@ Không server, không tài khoản, không API trả phí. Sau khi tải gói m�
 
 Ba cử chỉ:
 
-- **Chạm icon** → dịch trang đang hiện
-- **Giữ icon** → 📖 hướng dẫn · ✕ tắt app
-- **Chạm giữ vào bóng thoại** → xem lại chữ Nhật gốc
+| | |
+|---|---|
+| **Chạm icon** | dịch trang đang hiện |
+| **Giữ icon** | 📖 hướng dẫn · ✕ tắt app |
+| **Chạm giữ vào bóng thoại** | xem lại chữ Nhật gốc |
 
-## Nên biết trước
-
-- **Trang đầu mất khoảng 3 phút.** Phần lớn là mô hình đọc đề bài trước khi sinh chữ đầu tiên — không phải app treo. Trang đã dịch rồi thì gần như tức thì.
-- **Chữ hiệu ứng ngoài bóng thoại vẫn là tiếng Nhật.**
-- **Máy dưới 6 GB RAM** dễ bị Android tắt app giữa chừng.
-- Một số app chặn chụp màn hình — đó là giới hạn của Android, không có cách vòng.
+> Trang đầu mất khoảng 3 phút — mô hình phải đọc hết trang trước khi dịch, không phải app treo. Trang đã dịch rồi thì gần như tức thì.
 
 ---
 
-## Ghi công
-
-Dùng ba mô hình nguồn mở, đều giấy phép Apache-2.0:
-[`ogkalu/comic-text-and-bubble-detector`](https://huggingface.co/ogkalu/comic-text-and-bubble-detector) ·
-[`onnx-community/manga-ocr-base-ONNX`](https://huggingface.co/onnx-community/manga-ocr-base-ONNX) ·
-[`litert-community/gemma-4-E2B-it-litert-lm`](https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm)
+<sub>Dùng ba mô hình nguồn mở giấy phép Apache-2.0: [detector](https://huggingface.co/ogkalu/comic-text-and-bubble-detector) · [manga-ocr](https://huggingface.co/onnx-community/manga-ocr-base-ONNX) · [Gemma 4 E2B](https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm)</sub>
 
 ## Pháp lý
 
