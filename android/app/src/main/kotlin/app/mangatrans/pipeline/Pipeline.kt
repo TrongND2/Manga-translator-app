@@ -65,6 +65,13 @@ class Pipeline(
 
         // --- buoc 2: cong loc (AD-5) ---
         job = GateFilter(cfg).apply(job)
+        // CHI so do hinh hoc — khong bao gio ghi noi dung anh hay chu da OCR.
+        // `shell` quyet dinh o nen phu toi dau: khong co vo bong thi chi to
+        // duoc hop chu, ma hop chu om sat chu nen chu goc de lo ra.
+        android.util.Log.i(
+            "Pipeline",
+            "gate: ${job.bubbles.size} vung, ${job.bubbles.count { it.shell != null }} co vo bong",
+        )
         val boxes = job.bubbles.map { it.box }
         job = job.copy(contentKey = PageHash.contentKey(bitmap, boxes))
 

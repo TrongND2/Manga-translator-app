@@ -72,6 +72,27 @@ object BubbleRenderer {
         return ready.count { drawText(canvas, it, typeface, sample) }
     }
 
+    /**
+     * Hop chu detector tra ve om SAT chu, va no khong phai luc nao cung om het.
+     * Do thay tren anh chup man hinh (trang truyen bi thu nho trong khung 1080
+     * x2400): hop hep hon chu that, nen **chu Nhat con lo ra o ria bong**.
+     *
+     * Noi hop ra mot chut de hap thu sai so do. Nhung PHAI kep trong vo bong
+     * khi co vo — noi tu do se to de len tranh va len bong ben canh, dung loi
+     * ma F26 da phai sua bon vong.
+     */
+    private const val PAD_RATIO = 0.08
+
+    private fun padded(b: Box, shell: Box?): Box {
+        val px = (b.width * PAD_RATIO).toInt().coerceAtLeast(2)
+        val py = (b.height * PAD_RATIO).toInt().coerceAtLeast(2)
+        val out = Box(b.x1 - px, b.y1 - py, b.x2 + px, b.y2 + py)
+        return if (shell == null) out else Box(
+            maxOf(out.x1, shell.x1), maxOf(out.y1, shell.y1),
+            minOf(out.x2, shell.x2), minOf(out.y2, shell.y2),
+        )
+    }
+
     private fun fillBackground(canvas: Canvas, bubble: Bubble, sample: (Box) -> Int) {
         val b = bubble.box
         val shell = bubble.shell
@@ -84,7 +105,8 @@ object BubbleRenderer {
                 shell.x2.toFloat(), shell.y2.toFloat(), fill
             )
         }
-        canvas.drawRect(b.x1.toFloat(), b.y1.toFloat(), b.x2.toFloat(), b.y2.toFloat(), fill)
+        val r = padded(b, shell)
+        canvas.drawRect(r.x1.toFloat(), r.y1.toFloat(), r.x2.toFloat(), r.y2.toFloat(), fill)
     }
 
     private fun drawText(

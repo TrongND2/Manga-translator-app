@@ -203,13 +203,19 @@ class CaptureService : Service() {
         runCatching {
             p.run(bitmap).collect { ev ->
                 when (ev) {
-                    is PageEvent.Progress -> setIconState(
+                    is PageEvent.Progress -> {
+                        // CHI ghi so dem va ma trang thai. KHONG bao gio ghi noi
+                        // dung anh hay chu da OCR — do la man hinh rieng cua
+                        // nguoi dung.
+                        Log.i(TAG, "${ev.stage} ${ev.done}/${ev.total}")
+                        setIconState(
                         when (ev.stage) {
                             Stage.Capturing, Stage.Detecting -> FloatingIcon.State.Capturing
                             Stage.Reading -> FloatingIcon.State.Reading
                             Stage.Translating, Stage.Drawing -> FloatingIcon.State.Translating
                         }
-                    )
+                        )
+                    }
 
                     is PageEvent.BubbleReady -> {
                         // Lan dau co bubble moi dung anh chup lam nen — truoc do
@@ -244,6 +250,7 @@ class CaptureService : Service() {
             }
         }.onFailure { Log.e(TAG, "luot dich hong: ${it.javaClass.simpleName}") }
 
+        Log.i(TAG, "xong: ve $drawn bubble")
         setIconState(if (src.isAlive) FloatingIcon.State.Ready else FloatingIcon.State.NeedPermission)
         if (drawn == 0) toast("Không tìm thấy bóng thoại nào trên màn hình")
     }
