@@ -1260,6 +1260,47 @@ Và: **một khai báo trong manifest thường đi kèm một quyền.** Thiế
 
 ---
 
+## F35 — Tải tiếp chỗ dở: chứng minh bằng lần tải thật, và bằng checksum chứ không bằng số byte
+
+Story 4.2 sống chết ở chỗ "rớt mạng thì tải tiếp, không làm lại từ đầu". 2,7 GB trên mạng di động **sẽ** đứt giữa chừng.
+
+### Probe trước khi viết
+
+Trước khi viết một dòng nào, hỏi thẳng năm máy chủ:
+
+```
+$ curl -sIL <url>
+HTTP/1.1 200 OK
+accept-ranges: bytes
+content-length: 2588147712      ← khớp đúng file đã dùng đo Phase 0
+```
+
+Cả năm URL Hugging Face đều có `Accept-Ranges: bytes`. Nếu thiếu, cả Story 4.2 phải thiết kế khác — nên đây là thứ phải biết **trước**, không phải sau.
+
+### Đo trên máy thật
+
+| | |
+|---|---|
+| Tải mới | `detector-v4-s_int8.onnx: tai tu byte 0 / 11120765` |
+| Dựng sẵn phần dở 4 MB, tải lại | `tai tu byte 4194304 / 11120765` |
+| File cuối | **11 120 765 byte**, đã đổi tên từ `.part` |
+
+### Điều đáng tin không phải con số 4194304
+
+Mà là **việc đổi tên có xảy ra**. Thiết kế: `.part` chỉ được đổi thành tên thật khi **và chỉ khi** SHA-256 của *toàn bộ* file khớp manifest. Nếu phần nối vào lệch một byte — sai offset, máy chủ trả cả file thay vì phần đuôi, ghi đè thay vì nối — thì hash lệch và file bị xoá.
+
+Nên "file có mặt với tên thật" **tự nó** là bằng chứng nối đúng. Không cần tin vào con số byte, cũng không cần tin rằng máy chủ xử lý `Range` đúng.
+
+Hệ quả kèm theo: **không bao giờ tồn tại một file "xong" mà hỏng.** `find()` trả về file nào thì file đó dùng được.
+
+⚠️ Ngược lại, nếu máy chủ trả `200` khi ta xin `Range` (tức không hỗ trợ tải tiếp), lớp tải **báo `ResumeNotSupported`** chứ không âm thầm tải lại 2,7 GB từ đầu. Âm thầm làm lại là cách chắc chắn nhất để người dùng bỏ cuộc mà không hiểu vì sao.
+
+### Quy tắc rút ra
+
+**Khi không thể tin vào từng bước, hãy tìm một phép kiểm bao trùm cả quá trình.** Ở đây một lần băm cuối cùng thay thế cho việc phải tin vào offset, vào máy chủ, vào chế độ ghi nối, và vào chính mình. Cùng tinh thần với F33 — chọn một đại lượng mà đúng và sai khác nhau rõ ràng.
+
+---
+
 ## Còn nợ
 
 | # | Việc | Chặn gì | Trạng thái |

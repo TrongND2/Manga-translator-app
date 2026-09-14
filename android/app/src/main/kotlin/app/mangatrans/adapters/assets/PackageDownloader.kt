@@ -45,8 +45,30 @@ class PackageDownloader(private val store: ModelStore) {
         const val REPORT_EVERY = 1L shl 20   // 1 MB
     }
 
-    /** Tai manifest. Day la file DAU TIEN, va no quyet dinh tai gi tiep. */
-    suspend fun fetchManifest(url: String = ModelStore.MANIFEST_URL): PackageManifest {
+    /**
+     * Tai manifest. Day la file DAU TIEN, va no quyet dinh tai gi tiep.
+     *
+     * **Tu xa truoc, ban dong goi sau.** Ly do phai co ban du phong: manifest tu
+     * xa chi lay duoc khi repo cong khai. Da thu that — API GitHub tra 404 cho
+     * ca repo lan file trong khi file CO trong `origin/main`, tuc la repo dang
+     * private. Nhet token vao APK de doc repo private la sai.
+     *
+     * ⚠️ Ban dong goi lam phep kiem khoang phien ban tuong thich (AD-15) mat y
+     * nghia: manifest di cung APK thi no luon khop. Phep kiem do chi thuc su
+     * hoat dong khi manifest den TU XA. Giu ca hai duong de app chay duoc ngay,
+     * va de phep kiem tu song lai khi repo cong khai.
+     */
+    suspend fun fetchManifest(url: String = ModelStore.MANIFEST_URL): PackageManifest =
+        runCatching { fetchRemoteManifest(url) }.getOrElse { remote ->
+            Log.w(TAG, "khong lay duoc manifest tu xa (${remote.javaClass.simpleName}), dung ban dong goi")
+            runCatching { ModelStore.parseManifest(bundledManifest()) }
+                .getOrElse { throw remote }
+        }
+
+    private fun bundledManifest(): String =
+        store.assets.open("package.json").bufferedReader().use { it.readText() }
+
+    private fun fetchRemoteManifest(url: String): PackageManifest {
         val text = runCatching {
             (URL(url).openConnection() as HttpURLConnection).run {
                 connectTimeout = CONNECT_MS

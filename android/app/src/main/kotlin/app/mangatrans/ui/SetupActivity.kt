@@ -191,21 +191,47 @@ class SetupActivity : AppCompatActivity() {
     }
 
     private fun showNeedsDownload(m: PackageManifest, have: Long) {
-        val gb = "%.1f".format(m.totalGigabytes)
-        status.text = if (have > 0)
-            "Đang dở: đã tải %.1f / %s GB.".format(have / 1e9, gb)
-        else
-            "Cần tải gói mô hình: $gb GB."
+        // Chi liet ke va cong don thu THUC SU con thieu.
+        //
+        // Truoc do man hinh bao "can tai 2.8 GB" ngay ca khi chi thieu 11 MB, vi
+        // no lay tong ca goi. Nhin tren may moi thay: bon file kia da co san
+        // (day tay bang adb push), chi thieu detector.
+        val missing = m.files.filter { store.find(it.name) == null }
+        val need = missing.sumOf { it.sizeBytes - store.bytesOnDisk(it.name) }
+
+        status.text =
+            if (have > 0) "Đang dở: còn ${human(need)} nữa."
+            else "Cần tải ${human(need)}."
 
         detail.text = buildString {
+            if (missing.size < m.files.size) {
+                append("${m.files.size - missing.size}/${m.files.size} file đã có sẵn trên máy.\n")
+            }
             append("Nên dùng Wi-Fi. Tải được tạm dừng và tiếp tục — ")
             append("rớt mạng thì lần sau tải tiếp chỗ dở, không làm lại từ đầu.\n")
-            append(m.files.joinToString("\n") { "  • ${it.name} — ${it.megabytes} MB" })
+            append(missing.joinToString("\n") { f ->
+                val done = store.bytesOnDisk(f.name)
+                if (done > 0) "  • ${f.name} — ${human(f.sizeBytes - done)} còn lại"
+                else "  • ${f.name} — ${human(f.sizeBytes)}"
+            })
         }
         bar.visibility = android.view.View.GONE
         actionBtn.text = if (have > 0) "Tải tiếp" else "Tải về"
         actionBtn.setOnClickListener { warnIfWeakThenDownload(m) }
         actionBtn.isEnabled = true
+    }
+
+    /**
+     * Doc duoc voi ca file 24 KB lan file 2.6 GB.
+     *
+     * Truoc do chia cung cho 1e6 nen `vocab.txt` hien la "0 MB" — dung ve so
+     * hoc, vo nghia voi nguoi doc.
+     */
+    private fun human(bytes: Long): String = when {
+        bytes >= 1_000_000_000L -> "%.1f GB".format(bytes / 1e9)
+        bytes >= 1_000_000L -> "%d MB".format(bytes / 1_000_000)
+        bytes >= 1_000L -> "%d KB".format(bytes / 1_000)
+        else -> "$bytes B"
     }
 
     // ---------- Story 4.4: canh bao may yeu ----------
@@ -250,7 +276,7 @@ class SetupActivity : AppCompatActivity() {
                 downloader.download(m).collect { p ->
                     val doneBytes = m.files.take(p.fileIndex).sumOf { it.sizeBytes } + p.bytesHave
                     bar.progress = (doneBytes * 100 / m.totalBytes).toInt()
-                    status.text = "Đang tải %.2f / %.1f GB".format(doneBytes / 1e9, m.totalGigabytes)
+                    status.text = "Đang tải ${human(doneBytes)} / ${human(m.totalBytes)}"
                     detail.text = "${p.fileName} — ${p.percent}%  " +
                         "(file ${p.fileIndex + 1}/${p.fileCount})"
                 }

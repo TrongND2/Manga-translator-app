@@ -24,6 +24,9 @@ import java.security.MessageDigest
  */
 class ModelStore(ctx: Context, private val appVersion: Int) {
 
+    /** Ban manifest dong goi trong APK — duong du phong khi khong lay duoc tu xa. */
+    val assets: android.content.res.AssetManager = ctx.assets
+
     companion object {
         const val DEV_DIR = "/data/local/tmp"
 
