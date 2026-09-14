@@ -87,11 +87,20 @@
                 android:value="Giu icon noi trong luc cho nguoi dung cap quyen chup man hinh" />
         </service>
 
-        <!-- Story 3.2 — man hinh trong suot, chi song du lau de xin quyen chup. -->
+        <!--
+          Man hinh trong suot, chi song du lau de xin quyen chup.
+
+          `taskAffinity=""` la thu quan trong nhat o day: no cho Activity nay
+          chay trong task RIENG. Thieu no thi mo tu service se keo ca task cua
+          app len truoc — man hinh nhay ve trang chu cua app roi moi hien hop
+          thoai, nhin y nhu app tu bat len de theo doi man hinh.
+        -->
         <activity
             android:name=".ui.ProjectionRequestActivity"
             android:exported="false"
+            android:taskAffinity=""
             android:excludeFromRecents="true"
+            android:noHistory="true"
             android:theme="@android:style/Theme.Translucent.NoTitleBar" />
 
         <!-- Epic 4 — cai dat lan dau: giai thich quyen, tai goi mo hinh, xoa goi. -->

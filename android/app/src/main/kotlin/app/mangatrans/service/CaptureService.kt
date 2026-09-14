@@ -69,6 +69,18 @@ class CaptureService : Service() {
         /** Nhip hoi "co frame moi khong". Du nhanh de bat cu vuot sang trang. */
         private const val POLL_MS = 350L
 
+        /**
+         * Icon noi dang bat hay khong — man hinh chinh dung de doi mot nut duy
+         * nhat giua Bat va Tat.
+         *
+         * Dat o day chu khong hoi `ActivityManager.getRunningServices()`: ham do
+         * da bi khai tu va tu Android 8 chi tra ve service cua CHINH app goi —
+         * dung duoc nhung vong vo hon mot bien.
+         */
+        @Volatile
+        var isRunning = false
+            private set
+
         fun stopIntent(ctx: Context) = Intent(ctx, CaptureService::class.java)
             .setAction(ACTION_STOP)
     }
@@ -100,6 +112,7 @@ class CaptureService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        isRunning = true
         startForegroundProperly()
         overlays = OverlayController(
             this,
@@ -357,16 +370,14 @@ class CaptureService : Service() {
         }
     }
 
-    private fun requestProjection() {
-        startActivity(
-            Intent(this, ProjectionRequestActivity::class.java)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        )
-    }
+    /** Service da chay roi, chi can cap lai quyen (vi du sau khi khoa man hinh). */
+    private fun requestProjection() =
+        startActivity(ProjectionRequestActivity.intent(this, alsoStartService = false))
 
     // ---------- dong (Story 3.5) ----------
 
     private fun closeEverything() {
+        isRunning = false
         running?.cancel()
         watching?.cancel()
         scope.launch {
@@ -380,6 +391,7 @@ class CaptureService : Service() {
     }
 
     override fun onDestroy() {
+        isRunning = false
         releaseProjection()
         overlays?.destroy(); overlays = null
         super.onDestroy()

@@ -8,22 +8,33 @@ import androidx.appcompat.app.AlertDialog
 import app.mangatrans.service.CaptureService
 
 /**
- * Story 3.1 — bat icon noi.
+ * Bat icon noi — va xin **ca hai quyen ngay tai day**, mot lan, truoc khi icon
+ * xuat hien.
  *
- * `SYSTEM_ALERT_WINDOW` KHONG xin duoc bang hop thoai thong thuong: Android bat
- * nguoi dung tu vao Cai dat bat cong tac. Nen o day chi giai thich roi mo dung
- * trang Cai dat — khong co duong tat nao ca.
+ * ⚠️ Truoc day app bat icon truoc roi de nguoi dung cham icon moi xin quyen
+ * chup. Hai cai sai voi cach do:
+ *
+ *   1. Nguoi dung phai cap quyen o hai thoi diem khac nhau, cach nhau vai phut,
+ *      va lan thu hai thi ho da o trong app doc truyen — dang ngo hon nhieu.
+ *   2. Mo `ProjectionRequestActivity` tu service keo ca task cua app len truoc,
+ *      nen man hinh **nhay ve trang chu cua app** roi moi hien hop thoai. Nhin
+ *      y nhu app dang tu bat len de theo doi man hinh.
+ *
+ * Gio: bam Bat -> xin quyen hien tren app khac -> xin quyen chup -> icon hien ra
+ * o trang thai san sang luon. Khong con icon 🔑.
  */
 object OverlayLauncher {
 
     fun canDrawOverlay(a: Activity): Boolean = Settings.canDrawOverlays(a)
 
     /**
-     * @return true neu da bat service; false neu con thieu quyen (da mo Cai dat).
+     * @return true neu da bat service; false neu con thieu quyen hien tren app
+     *   khac (da mo Cai dat cho nguoi dung bat).
      */
     fun start(a: Activity): Boolean {
         if (!canDrawOverlay(a)) { explainAndOpenSettings(a); return false }
-        a.startForegroundService(Intent(a, CaptureService::class.java))
+        // Xin quyen chup NGAY, khong doi den luc cham icon.
+        a.startActivity(ProjectionRequestActivity.intent(a, alsoStartService = true))
         return true
     }
 

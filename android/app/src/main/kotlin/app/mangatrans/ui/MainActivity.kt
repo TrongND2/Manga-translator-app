@@ -4,7 +4,6 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Typeface
-import android.net.Uri
 import android.os.Bundle
 import android.util.Log
 import android.view.Gravity
@@ -13,10 +12,10 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import app.mangatrans.Composition
+import app.mangatrans.service.CaptureService
 import app.mangatrans.adapters.litertlm.LiteRtLmTranslator
 import app.mangatrans.domain.PageEvent
 import app.mangatrans.pipeline.BubbleRenderer
@@ -49,77 +48,70 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var image: ImageView
     private lateinit var log: TextView
-    private lateinit var pickBtn: Button
+    private lateinit var toggleBtn: LinearLayout
 
     private val setupOnce = java.util.concurrent.atomic.AtomicBoolean(false)
     private var pipeline: Pipeline? = null
     private var translator: LiteRtLmTranslator? = null
     private var typeface: Typeface = Typeface.DEFAULT
 
-    private val picker = registerForActivityResult(
-        ActivityResultContracts.OpenDocument()
-    ) { uri: Uri? -> uri?.let { translate(it) } }   // picker -> uri
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        pickBtn = Button(this).apply {
-            text = "Chọn ảnh trang manga"
-            setOnClickListener { picker.launch(arrayOf("image/*")) }
+        val title = TextView(this).apply {
+            text = "Manga Translator"
+            textSize = 26f
+            setTypeface(null, Typeface.BOLD)
+            setPadding(0, 0, 0, 4)
         }
-        // Nut nay de chay duoc bang adb ma khong can thao tac tay:
-        //   adb push trang.jpg /data/local/tmp/test_page.jpg
-        //   adb shell am start -n app.mangatrans/.ui.MainActivity --ez auto true
-        val sampleBtn = Button(this).apply {
-            text = "Dùng ảnh mẫu (/data/local/tmp/test_page.jpg)"
-            setOnClickListener { translateFile(File(TMP, "test_page.jpg")) }
-        }
-        // Epic 3 — day la duong vao THAT cua san pham. Man hinh chon file chi
-        // con dung de go loi pipeline.
-        val overlayBtn = Button(this).apply {
-            text = "Bật icon dịch màn hình"
-            setOnClickListener {
-                if (OverlayLauncher.start(this@MainActivity)) {
-                    say("Đã bật icon nổi. Mở trang truyện rồi chạm icon để dịch.")
-                }
-            }
-        }
-        val stopOverlayBtn = Button(this).apply {
-            text = "Tắt icon dịch màn hình"
-            setOnClickListener { OverlayLauncher.stop(this@MainActivity); say("Đã tắt icon nổi.") }
-        }
-        // Epic 4 — duong vao cai dat lan dau: tai goi mo hinh, xoa goi.
-        val setupBtn = Button(this).apply {
-            text = "Cài đặt / tải gói mô hình"
-            setOnClickListener {
-                startActivity(android.content.Intent(this@MainActivity, SetupActivity::class.java))
-            }
-        }
-        val guideBtn = Button(this).apply {
-            text = "Hướng dẫn sử dụng"
-            setOnClickListener {
-                startActivity(android.content.Intent(this@MainActivity, GuideActivity::class.java))
-            }
+        val tagline = TextView(this).apply {
+            text = "Dịch manga Nhật → Việt ngay trên máy"
+            textSize = 13f
+            alpha = 0.6f
+            setPadding(0, 0, 0, 20)
         }
 
-        // FR-033/FR-034 — sau moi trang dich, muc tu de xuat don o day cho xac nhan.
-        val glossaryBtn = Button(this).apply {
-            text = "Từ điển riêng"
-            setOnClickListener { startActivity(GlossaryActivity.intent(this@MainActivity)) }
-        }
+        // Mot nut DUY NHAT doi giua Bat va Tat. Hai nut rieng bat nguoi dung tu
+        // nho dang o trang thai nao — ma chinh cai nut la cho nen noi dieu do.
+        toggleBtn = MenuButton.make(
+            this, "▶", "Bật icon dịch màn hình",
+            "Icon nổi lên trên app đọc truyện", MenuButton.Colors.on,
+        ) { onToggleOverlay() }
+
+        val setupBtn = MenuButton.make(
+            this, "⤓", "Cài đặt / gói mô hình",
+            "Tải, kiểm tra hoặc xoá gói dịch", MenuButton.Colors.setup,
+        ) { startActivity(android.content.Intent(this, SetupActivity::class.java)) }
+
+        val guideBtn = MenuButton.make(
+            this, "?", "Hướng dẫn sử dụng",
+            "Ba cử chỉ và ý nghĩa từng trạng thái", MenuButton.Colors.guide,
+        ) { startActivity(android.content.Intent(this, GuideActivity::class.java)) }
+
+        val glossaryBtn = MenuButton.make(
+            this, "A", "Từ điển riêng",
+            "Tên nhân vật, thành ngữ, xưng hô", MenuButton.Colors.glossary,
+        ) { startActivity(GlossaryActivity.intent(this)) }
+
         image = ImageView(this).apply {
             adjustViewBounds = true
-            minimumHeight = 400
+            minimumHeight = 0
+            visibility = android.view.View.GONE
         }
-        log = TextView(this).apply { setPadding(16, 8, 16, 8); textSize = 11f }
+        // Log ky thuat chi hien o duong go loi bang adb. Nguoi dung khong can
+        // biet ten file encoder.
+        log = TextView(this).apply {
+            setPadding(0, 12, 0, 8); textSize = 11f; alpha = 0.7f
+            visibility = android.view.View.GONE
+        }
 
         setContentView(ScrollView(this).apply {
             addView(LinearLayout(this@MainActivity).apply {
                 orientation = LinearLayout.VERTICAL
-                gravity = Gravity.CENTER_HORIZONTAL
-                addView(overlayBtn); addView(stopOverlayBtn)
+                setPadding(dp(20), dp(24), dp(20), dp(32))
+                addView(title); addView(tagline)
+                addView(toggleBtn)
                 addView(setupBtn); addView(guideBtn); addView(glossaryBtn)
-                addView(pickBtn); addView(sampleBtn)
                 addView(log); addView(image)
             })
         })
@@ -151,18 +143,59 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        lifecycleScope.launch {
-            setup()
-            // Cho phep chay tu dong: am start ... --ez auto true
-            if (intent?.getBooleanExtra("auto", false) == true) {
+        // ⚠️ KHONG nap engine o day.
+        //
+        // Truoc day man hinh chinh tu nap ca 3,2 GB mo hinh ngay khi mo — ke ca
+        // khi nguoi dung chi vao xem huong dan roi thoat. Vua cham mo app, vua
+        // dua app len dau danh sach bi Android giet khi thieu bo nho (da xay ra
+        // that: "Process app.mangatrans has died: prcp FGS" giua luc dich).
+        //
+        // Gio chi `CaptureService` nap, va chi khi nguoi dung bat icon.
+        if (intent?.getBooleanExtra("auto", false) == true) {
+            log.visibility = android.view.View.VISIBLE
+            lifecycleScope.launch {
+                setup()
                 translateFile(File(TMP, "test_page.jpg"))
             }
         }
     }
 
+    private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
+
+    override fun onResume() {
+        super.onResume()
+        // Nguoi dung co the tat icon tu chinh icon con ✕ roi quay lai day.
+        refreshToggle()
+    }
+
+    private fun refreshToggle() {
+        if (CaptureService.isRunning) {
+            MenuButton.update(
+                toggleBtn, "■", "Tắt icon dịch màn hình",
+                "Icon đang bật", MenuButton.Colors.off,
+            )
+        } else {
+            MenuButton.update(
+                toggleBtn, "▶", "Bật icon dịch màn hình",
+                "Icon nổi lên trên app đọc truyện", MenuButton.Colors.on,
+            )
+        }
+    }
+
+    private fun onToggleOverlay() {
+        if (CaptureService.isRunning) {
+            OverlayLauncher.stop(this)
+            say("Đã tắt icon nổi.")
+        } else {
+            OverlayLauncher.start(this)
+        }
+        // Service bat/tat khong tuc thi — doi mot nhip roi doc lai trang thai.
+        toggleBtn.postDelayed(::refreshToggle, 400)
+    }
+
     private fun translateFile(f: File) {
         if (!f.exists()) { say("Không thấy ${f.absolutePath}"); return }
-        translate(null, f)
+        translate(f)
     }
 
     private fun say(s: String) {
@@ -204,18 +237,20 @@ class MainActivity : AppCompatActivity() {
             .onFailure { say("Lỗi nạp LLM: ${it.message}") }
     }
 
-    private fun translate(uri: Uri?, file: File? = null) = lifecycleScope.launch {
+    /**
+     * Duong dich tu FILE — chi con dung de go loi pipeline qua adb:
+     *   adb shell am start -n app.mangatrans/.ui.MainActivity --ez auto true
+     *
+     * Duong that cua san pham la icon noi (Epic 3). Nut chon anh o man hinh
+     * chinh da bo: nguoi dung khong can, va no lam man hinh roi.
+     */
+    private fun translate(file: File) = lifecycleScope.launch {
         val p = pipeline ?: run { say("Chưa sẵn sàng"); return@launch }
         runOnUiThread { log.text = "" }
+        image.visibility = android.view.View.VISIBLE
 
         val src = withContext(Dispatchers.IO) {
-            when {
-                file != null -> BitmapFactory.decodeFile(file.absolutePath)
-                uri != null -> contentResolver.openInputStream(uri)?.use {
-                    BitmapFactory.decodeStream(it)
-                }
-                else -> null
-            }?.copy(Bitmap.Config.ARGB_8888, true)
+            BitmapFactory.decodeFile(file.absolutePath)?.copy(Bitmap.Config.ARGB_8888, true)
         } ?: run { say("Không đọc được ảnh"); return@launch }
 
         say("Ảnh ${src.width}×${src.height}")

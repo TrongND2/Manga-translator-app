@@ -2,16 +2,12 @@ package app.mangatrans.adapters.overlay
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.graphics.Color
-import android.graphics.drawable.GradientDrawable
 import android.os.Build
-import android.util.TypedValue
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import android.widget.FrameLayout
-import android.widget.TextView
 import kotlin.math.abs
 
 /**
@@ -35,14 +31,14 @@ class FloatingIcon(
      */
     enum class State(val glyph: String, val label: String, val color: Int) {
         /** AD-20 — dang nap engine. KHONG nhan cham. */
-        Preparing("…", "Đang chuẩn bị", 0xFF9E9E9E.toInt()),
-        Ready("訳", "Sẵn sàng — chạm để dịch", 0xFF00695C.toInt()),
-        Capturing("📷", "Đang chụp màn hình", 0xFF0277BD.toInt()),
-        Reading("👁", "Đang đọc chữ", 0xFF0277BD.toInt()),
-        Translating("⋯", "Đang dịch", 0xFF0277BD.toInt()),
+        Preparing("···", "Đang chuẩn bị", 0xFF9E9E9E.toInt()),
+        Ready("VI", "Sẵn sàng — chạm để dịch", 0xFF00695C.toInt()),
+        Capturing("◎", "Đang chụp màn hình", 0xFF0277BD.toInt()),
+        Reading("···", "Đang đọc chữ", 0xFF0277BD.toInt()),
+        Translating("···", "Đang dịch", 0xFF0277BD.toInt()),
 
         /** AD-21 — khoa man hinh lam dung phien chieu. Binh thuong, khong phai loi. */
-        NeedPermission("🔑", "Chạm để cấp lại quyền chụp màn hình", 0xFFEF6C00.toInt()),
+        NeedPermission("!", "Chạm để cấp lại quyền chụp màn hình", 0xFFEF6C00.toInt()),
         Failed("!", "Không dịch được — chạm để xem lý do", 0xFFC62828.toInt()),
     }
 
@@ -66,20 +62,13 @@ class FloatingIcon(
     var state: State = State.Preparing
         set(value) {
             field = value
-            badge.text = value.glyph
-            (badge.background as GradientDrawable).setColor(value.color)
+            art.set(value.color, value.glyph)
         }
 
-    private val badge = TextView(ctx).apply {
-        gravity = Gravity.CENTER
-        setTextColor(Color.WHITE)
-        setTextSize(TypedValue.COMPLEX_UNIT_SP, 20f)
-        background = GradientDrawable().apply {
-            shape = GradientDrawable.OVAL
-            setColor(State.Preparing.color)
-            setStroke(dp(2), 0x55FFFFFF)
-        }
-    }
+    /** Hinh bong thoai — xem `BubbleIconDrawable` de biet vi sao khong dung chu Han. */
+    private val art = BubbleIconDrawable(State.Preparing.color, State.Preparing.glyph)
+
+    private val badge = View(ctx).apply { background = art }
 
     private val root = FrameLayout(ctx).apply {
         addView(badge, FrameLayout.LayoutParams(dp(ICON_DP), dp(ICON_DP)))
