@@ -1,0 +1,48 @@
+{
+  "_comment": [
+    "AD-15 — manifest cua goi mo hinh. App tai file nay TRUOC, doi chieu khoang",
+    "phien ban, roi moi tai cac file ben duoi va kiem sha256 tung cai.",
+    "",
+    "Host o day (raw.githubusercontent) vi D2 chot chi phi 0 dong: repo nay von",
+    "da co san, khong ton them gi. Doi host thi sua MANIFEST_URL trong ModelStore.",
+    "",
+    "sha256 va sizeBytes do tu chinh file da dung de do Phase 0, khong chep tu",
+    "trang web. URL da probe: ca 5 deu tra 200 va co `Accept-Ranges: bytes`,",
+    "tuc la tai tiep cho do duoc (dieu kien song con cua Story 4.2)."
+  ],
+  "packageVersion": "1.0.0",
+  "minAppVersion": 1,
+  "maxAppVersion": 99,
+  "files": [
+    {
+      "name": "gemma-4-E2B-it.litertlm",
+      "sizeBytes": 2588147712,
+      "sha256": "181938105e0eefd105961417e8da75903eacda102c4fce9ce90f50b97139a63c",
+      "url": "https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/main/gemma-4-E2B-it.litertlm"
+    },
+    {
+      "name": "detector-v4-s_int8.onnx",
+      "sizeBytes": 11120765,
+      "sha256": "5fe9e4f576e49d4e7e8b0e029d6d3cdc252abd4694113e1cae120e62c931ea79",
+      "url": "https://huggingface.co/ogkalu/comic-text-and-bubble-detector/resolve/main/detector-v4-s_int8.onnx"
+    },
+    {
+      "name": "encoder_model_fp16.onnx",
+      "sizeBytes": 171851891,
+      "sha256": "1a6a57bc3608195c4577b13ac3aadab810dce42fa22c5a3acf0570bffc013b60",
+      "url": "https://huggingface.co/onnx-community/manga-ocr-base-ONNX/resolve/main/onnx/encoder_model_fp16.onnx"
+    },
+    {
+      "name": "decoder_model_int8.onnx",
+      "sizeBytes": 29627936,
+      "sha256": "2e7177d2b0a59f1c612b694ed70c13971bee765cc2b2bc7bc9376e4753652f27",
+      "url": "https://huggingface.co/onnx-community/manga-ocr-base-ONNX/resolve/main/onnx/decoder_model_int8.onnx"
+    },
+    {
+      "name": "vocab.txt",
+      "sizeBytes": 24072,
+      "sha256": "344fbb6b8bf18c57839e924e2c9365434697e0227fac00b88bb4899b78aa594d",
+      "url": "https://huggingface.co/kha-white/manga-ocr-base/resolve/main/vocab.txt"
+    }
+  ]
+}

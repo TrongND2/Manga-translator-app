@@ -5,6 +5,7 @@ import android.graphics.Typeface
 import app.mangatrans.adapters.litertlm.LiteRtLmTranslator
 import app.mangatrans.adapters.onnx.MangaOcrOnnx
 import app.mangatrans.adapters.onnx.OnnxTextDetector
+import app.mangatrans.adapters.assets.ModelStore
 import app.mangatrans.adapters.storage.FileCache
 import app.mangatrans.adapters.storage.JsonGlossaryStore
 import app.mangatrans.pipeline.BubbleRenderer
@@ -103,10 +104,15 @@ object Composition {
      *   vao day — do la noi dung man hinh rieng cua nguoi dung.
      */
     private suspend fun build(ctx: Context, say: (String) -> Unit): Engines = withContext(Dispatchers.IO) {
-        val enc = ENCODERS.map { File(TMP, it) }.firstOrNull { it.exists() }
-        val dec = DECODERS.map { File(TMP, it) }.firstOrNull { it.exists() }
+        // Epic 4 — tim o kho cua app TRUOC, roi moi den /data/local/tmp.
+        // Nho thu tu do, goi da tai ve thang goi day tay bang `adb push`, ma
+        // duong day tay van con dung duoc cho moi lenh thu trong handoff.
+        val store = ModelStore(ctx, appVersion(ctx))
 
-        val missing = REQUIRED.filterNot { File(TMP, it).exists() }.toMutableList()
+        val enc = ENCODERS.firstNotNullOfOrNull { store.find(it) }
+        val dec = DECODERS.firstNotNullOfOrNull { store.find(it) }
+
+        val missing = REQUIRED.filterNot { store.find(it) != null }.toMutableList()
         if (enc == null) missing += ENCODERS.first()
         if (dec == null) missing += DECODERS.first()
         if (missing.isNotEmpty()) throw MissingModels(missing)
@@ -115,15 +121,15 @@ object Composition {
         say("  encoder: ${enc!!.name} (${enc.length() / 1_000_000} MB)")
         say("  decoder: ${dec!!.name} (${dec.length() / 1_000_000} MB)")
 
-        val det = OnnxTextDetector(File(TMP, "detector-v4-s_int8.onnx").absolutePath)
-        val vocab = File(TMP, "vocab.txt").readLines()
+        val det = OnnxTextDetector(store.find("detector-v4-s_int8.onnx")!!.absolutePath)
+        val vocab = store.find("vocab.txt")!!.readLines()
         val ocr = MangaOcrOnnx(enc.absolutePath, dec.absolutePath, vocab)
 
         // AD-25: 2 luong CPU (58-62 do C thay vi 76-84).
         // AD-2: CPU la duong DUY NHAT dung duoc tren Adreno 642L.
         val cfg = PipelineConfig()
         val translator = LiteRtLmTranslator(
-            File(TMP, "gemma-4-E2B-it.litertlm").absolutePath, cfg,
+            store.find("gemma-4-E2B-it.litertlm")!!.absolutePath, cfg,
         )
 
         val pipeline = Pipeline(
@@ -141,6 +147,17 @@ object Composition {
 
         Engines(pipeline, translator, typeface, fontOk)
     }
+
+    /**
+     * `versionCode` cua app — AD-15 dung no de doi chieu voi khoang tuong thich
+     * khai trong manifest cua goi mo hinh.
+     */
+    fun appVersion(ctx: Context): Int = runCatching {
+        val info = ctx.packageManager.getPackageInfo(ctx.packageName, 0)
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P)
+            info.longVersionCode.toInt()
+        else @Suppress("DEPRECATION") info.versionCode
+    }.getOrDefault(1)
 
     /** Mot cho duy nhat quyet dinh glossary nam o dau. */
     fun glossaryFile(ctx: Context): File = File(ctx.filesDir, "glossary.json")

@@ -88,6 +88,13 @@ class MainActivity : AppCompatActivity() {
             text = "Tắt icon dịch màn hình"
             setOnClickListener { OverlayLauncher.stop(this@MainActivity); say("Đã tắt icon nổi.") }
         }
+        // Epic 4 — duong vao cai dat lan dau: tai goi mo hinh, xoa goi.
+        val setupBtn = Button(this).apply {
+            text = "Cài đặt / tải gói mô hình"
+            setOnClickListener {
+                startActivity(android.content.Intent(this@MainActivity, SetupActivity::class.java))
+            }
+        }
         val guideBtn = Button(this).apply {
             text = "Hướng dẫn sử dụng"
             setOnClickListener {
@@ -111,7 +118,7 @@ class MainActivity : AppCompatActivity() {
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER_HORIZONTAL
                 addView(overlayBtn); addView(stopOverlayBtn)
-                addView(guideBtn); addView(glossaryBtn)
+                addView(setupBtn); addView(guideBtn); addView(glossaryBtn)
                 addView(pickBtn); addView(sampleBtn)
                 addView(log); addView(image)
             })
@@ -126,6 +133,10 @@ class MainActivity : AppCompatActivity() {
         }
         if (intent?.getBooleanExtra("overlay", false) == true) {
             OverlayLauncher.start(this)
+        }
+        //   adb shell am start -n app.mangatrans/.ui.MainActivity --ez setup true
+        if (intent?.getBooleanExtra("setup", false) == true) {
+            startActivity(android.content.Intent(this, SetupActivity::class.java))
         }
         // Chi HIEN anh mau, khong dich — de co mot trang truyen tren man hinh
         // ma thu icon noi. Anh chiem het man de giong canh doc that.

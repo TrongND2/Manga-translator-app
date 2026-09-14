@@ -19,6 +19,16 @@
     <!-- Thong bao thuong truc cua foreground service (Android 13+ moi can xin). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!--
+      Epic 4 — CHI de tai goi mo hinh MOT LAN (AD-15). Sau do app chay offline
+      hoan toan (D1), khong goi mang nua.
+
+      D3 chot KHONG lam che do cloud: khong co anh nao, khong co chu nao da OCR,
+      khong co gi cua nguoi dung roi khoi may. Chieu duy nhat la TAI VE.
+    -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
     <application
         android:label="Manga Translator"
         android:icon="@android:drawable/ic_menu_view"
@@ -83,6 +93,12 @@
             android:exported="false"
             android:excludeFromRecents="true"
             android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
+        <!-- Epic 4 — cai dat lan dau: giai thich quyen, tai goi mo hinh, xoa goi. -->
+        <activity
+            android:name=".ui.SetupActivity"
+            android:label="Cài đặt lần đầu"
+            android:exported="false" />
 
         <!-- Story 3.10 — huong dan su dung, mo tu icon con hinh quyen sach. -->
         <activity
