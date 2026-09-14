@@ -9,7 +9,9 @@ import android.os.Build
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
+import app.mangatrans.domain.Box
 import app.mangatrans.domain.Bubble
+import app.mangatrans.domain.BubbleState
 import app.mangatrans.pipeline.BubbleRenderer
 
 /**
@@ -124,6 +126,21 @@ class TranslationOverlay(
     /** AD-11 — an tam de chup. */
     fun setVisibleForCapture(visible: Boolean) {
         view.visibility = if (visible) View.VISIBLE else View.INVISIBLE
+    }
+
+    /**
+     * Story 3.6 — hop cac bubble DA VE, quy ve TOA DO MAN HINH.
+     *
+     * Dung chinh phep bu offset ma `onDraw` dung, de vung cham trung khop voi
+     * vung nhin thay. Tinh rieng hai cho la cach chac chan de chung troi khoi
+     * nhau (F31 da day mot lan roi).
+     */
+    fun drawnBoxesOnScreen(): List<Box> {
+        view.getLocationOnScreen(loc)
+        val dy = offsetY - loc[1]
+        return bubbles.values
+            .filter { it.state == BubbleState.Accepted && !it.vi.isNullOrBlank() }
+            .map { Box(it.box.x1, it.box.y1 + dy, it.box.x2, it.box.y2 + dy) }
     }
 
     val hasContent: Boolean get() = bubbles.isNotEmpty()

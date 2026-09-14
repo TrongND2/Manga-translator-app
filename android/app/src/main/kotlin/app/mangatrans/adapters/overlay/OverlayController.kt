@@ -29,10 +29,14 @@ class OverlayController(
     val icon = FloatingIcon(ctx, wm, onTap = onTap, onGuide = onGuide, onClose = onClose)
     val translation = TranslationOverlay(ctx, wm)
 
+    /** Story 3.6 — cac cua so nho nhan cham giu tren tung bubble. */
+    private val peek = PeekTargets(ctx, wm) { peeking -> translation.setPeeking(peeking) }
+
     fun show() = icon.show()
 
     /** Story 3.5 — go sach, khong con dau vet nao (AD-10). */
     fun destroy() {
+        peek.clear()
         translation.clear()
         icon.hide()
     }
@@ -52,6 +56,7 @@ class OverlayController(
         withContext(Dispatchers.Main) {
             icon.setVisibleForCapture(false)
             translation.setVisibleForCapture(false)
+            peek.setVisibleForCapture(false)
         }
         try {
             return block()
@@ -59,6 +64,7 @@ class OverlayController(
             withContext(Dispatchers.Main) {
                 icon.setVisibleForCapture(true)
                 translation.setVisibleForCapture(true)
+                peek.setVisibleForCapture(true)
             }
         }
     }
@@ -66,12 +72,29 @@ class OverlayController(
     // ---------- chuyen tiep cho pipeline ----------
 
     suspend fun beginPage(source: Bitmap, frameHash: String, statusBarPx: Int, tf: Typeface) =
-        withContext(Dispatchers.Main) { translation.begin(source, frameHash, statusBarPx, tf) }
+        withContext(Dispatchers.Main) {
+            peek.clear()
+            translation.begin(source, frameHash, statusBarPx, tf)
+        }
 
     suspend fun addBubble(b: Bubble) = withContext(Dispatchers.Main) { translation.add(b) }
 
     suspend fun retract(ids: Collection<Int>) =
         withContext(Dispatchers.Main) { translation.retract(ids) }
 
-    suspend fun clearPage() = withContext(Dispatchers.Main) { translation.clear() }
+    suspend fun clearPage() = withContext(Dispatchers.Main) {
+        peek.clear()
+        translation.clear()
+    }
+
+    /**
+     * Story 3.6 — dat vung cham giu SAU khi ve xong ca trang.
+     *
+     * Khong dat theo tung bubble luc no chay ve: moi lan them mot cua so la mot
+     * lan he thong tinh lai layout, va trong luc dang dich thi nguoi dung chua
+     * co gi de liec.
+     */
+    suspend fun armPeek() = withContext(Dispatchers.Main) {
+        peek.setTargets(translation.drawnBoxesOnScreen())
+    }
 }

@@ -264,7 +264,12 @@ class CaptureService : Service() {
         }.onFailure { Log.e(TAG, "luot dich hong: ${it.javaClass.simpleName}") }
 
         Log.i(TAG, "xong: ve $drawn bubble")
-        if (drawn > 0) watchForPageChange(src) else ov.clearPage()
+        if (drawn > 0) {
+            ov.armPeek()              // Story 3.6
+            watchForPageChange(src)   // Story 3.7
+        } else {
+            ov.clearPage()
+        }
         setIconState(if (src.isAlive) FloatingIcon.State.Ready else FloatingIcon.State.NeedPermission)
         if (drawn == 0) toast("Không tìm thấy bóng thoại nào trên màn hình")
     }
