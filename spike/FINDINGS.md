@@ -967,6 +967,87 @@ Lý do hiển nhiên khi đã thấy: bộ lọc chặn *đề xuất mới*, n�
 
 ---
 
+## F28 — Thêm một thành phần là nạp thêm một bộ model, không ai báo gì
+
+Ngay lần đầu chạy Epic 3 trên M52, log chứng minh app nạp **hai** bộ model trong **cùng một tiến trình**:
+
+```
+11:44:18.161  31347 31378  I MangaTrans: encoder: encoder_model_fp16.onnx (171 MB)
+11:44:18.467  31347 31380  I CaptureSvc: encoder: encoder_model_fp16.onnx (171 MB)
+```
+
+Cùng `pid 31347`, khác thread. Tức là **2 × 171 MB ONNX + 2 × 2.6 GB LLM** trên máy 8 GB.
+
+### Vì sao chốt cũ không cứu được
+
+`MainActivity` đã có `AtomicBoolean setupOnce` — thêm vào từ Epic 2 sau khi bị OOM vì Activity tạo lại. Nhưng nó chỉ chặn **Activity tự nạp lại chính nó**. `CaptureService` là một thành phần khác, nó không biết gì về cái cờ đó.
+
+Đây là kiểu lỗi sinh ra khi **thêm thành phần thứ hai vào một thiết kế vốn chỉ có một**. Chốt đặt đúng ở mức thành phần hôm qua, hôm nay thành đặt sai mức.
+
+⇒ Chuyển sang **singleton cấp tiến trình** trong `Composition`, khoá bằng `Mutex` (`suspend`, nên không dùng `@Synchronized` được — và bên gọi sau phải **chờ** bản nạp đầu tiên xong rồi dùng chung, chứ không được nạp song song).
+
+Đo lại sau khi sửa: đúng **1** dòng `encoder:` trong log, LLM nóng sau 14–15 s.
+
+### Quy tắc rút ra
+
+**Chốt chống-nạp-hai-lần phải đặt ở phạm vi của tài nguyên, không phải phạm vi của người gọi.** Model sống theo tiến trình, nên chốt cũng phải ở tiến trình. Cờ nằm trong Activity chỉ đúng chừng nào Activity còn là nơi duy nhất nạp — một giả định không ai viết ra, và không ai kiểm.
+
+---
+
+## F29 — Ba thứ chỉ lộ ra khi chạy Epic 3 trên máy
+
+Cả ba đều biên dịch sạch hoặc không có dấu hiệu gì cho tới khi chạy thật.
+
+| Thứ | Triệu chứng | Lời giải |
+|---|---|---|
+| `TOUCHABLE_INSETS_REGION` | `ViewTreeObserver.OnComputeInternalInsetsListener` và `InternalInsetsInfo` là API **`@hide`**, không có trong SDK công khai — build đỏ | Lớp phủ dùng `FLAG_NOT_TOUCHABLE`: không bao giờ nhận chạm nên không thể chặn gì. Story 3.6 (chạm giữ để liếc nguyên bản) sẽ cần **cửa sổ nhỏ riêng đặt đè lên từng bubble** |
+| Theme của Activity trong suốt | `AppCompatActivity` + `@android:style/Theme.Translucent.NoTitleBar` ⇒ `IllegalStateException: You need to use a Theme.AppCompat theme`. **Sập thật trên máy** | Dùng `androidx.activity.ComponentActivity` — đủ cho `registerForActivityResult`, không ràng buộc theme |
+| Service `exported="false"` | `am start-foreground-service` báo `Requires permission not exported from uid` — đúng về bảo mật, nhưng không kiểm bằng `adb` được | Vào qua `MainActivity --ez overlay true`, cùng kiểu với `--ez auto` / `--ez glossary` đã có |
+
+**Quy tắc:** ba thứ này không có cái nào lộ ra từ đọc tài liệu. Nối lại đúng bài học đã ghi ở CLAUDE.md — *đọc mã nguồn, đừng tin tài liệu* — và thêm một vế: **API `@hide` trông y hệt API thật trong tài liệu và trong IDE.**
+
+---
+
+## F30 — `displayMetrics` KHÔNG phải kích thước màn hình, và sai đó làm chữ Nhật ló ra
+
+Lượt dịch qua chụp màn hình đầu tiên chạy được đầu-cuối: 12 bóng thoại đều ra tiếng Việt, vẽ đúng chỗ. Nhưng nhìn ảnh thì **chữ Nhật gốc vẫn ló ra ở mép phải mỗi bóng**, và bản dịch hơi lệch sang trái.
+
+### Đo, không đoán
+
+```
+$ adb shell wm size
+Physical size: 1080x2400
+
+$ adb shell dumpsys window displays
+init=1080x2400 420dpi   cur=1080x2400   app=1080x2184
+```
+
+`resources.displayMetrics` trả về **`app=1080x2184`** — đã trừ thanh điều hướng. Màn hình thật là **1080x2400**.
+
+### Vì sao sai đó biến thành chữ Nhật ló ra
+
+`VirtualDisplay` tạo theo 1080×2184 có **tỷ lệ khác** màn hình thật. Cờ `AUTO_MIRROR` xử lý bằng cách thu nhỏ cho vừa:
+
+```
+hệ số  = 2184 / 2400 = 0.910
+bề rộng nội dung sau khi thu = 1080 × 0.910 = 983 px
+viền đen mỗi bên = (1080 − 983) / 2 = 48 px
+```
+
+Nên ảnh chụp là trang truyện **nhỏ hơn 0.91 lần, nằm giữa hai viền đen 48 px**. Hộp bóng thoại detector tìm ra nằm trong hệ toạ độ đó. Vẽ 1:1 lên màn hình thật thì mọi thứ **dịch sang trái ~48 px và nhỏ hơn ~9%** — ô nền không phủ hết bóng, phần chữ Nhật bên phải lộ ra.
+
+Con số 48 px khớp đúng độ lệch đo được trên ảnh.
+
+⇒ Dùng `WindowManager.currentWindowMetrics.bounds` (API 30+) / `Display.getRealMetrics()` — cả hai đều tính cả vùng thanh hệ thống.
+
+### Quy tắc rút ra
+
+**Lỗi hình học không báo lỗi, nó báo "dịch thiếu".** Triệu chứng nhìn thấy là *nội dung* sai — chữ Nhật còn sót — nên phản xạ đầu tiên là đi ngờ OCR hoặc mô hình dịch. Cả hai đều vô tội. Nối tiếp F26: **một lượt vẽ trông gần đúng vẫn có thể sai ở tầng hoàn toàn khác.**
+
+Và: tên `displayMetrics` gợi ý nó là số đo của màn hình. Nó là số đo **vùng mà app được vẽ**. Hai thứ khác nhau, chỉ trùng nhau trên máy không có thanh điều hướng.
+
+---
+
 ## Còn nợ
 
 | # | Việc | Chặn gì | Trạng thái |

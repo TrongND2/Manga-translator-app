@@ -1,0 +1,163 @@
+package app.mangatrans
+
+import android.content.Context
+import android.graphics.Typeface
+import app.mangatrans.adapters.litertlm.LiteRtLmTranslator
+import app.mangatrans.adapters.onnx.MangaOcrOnnx
+import app.mangatrans.adapters.onnx.OnnxTextDetector
+import app.mangatrans.adapters.storage.FileCache
+import app.mangatrans.adapters.storage.JsonGlossaryStore
+import app.mangatrans.pipeline.BubbleRenderer
+import app.mangatrans.pipeline.Pipeline
+import app.mangatrans.pipeline.PipelineConfig
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
+import java.io.File
+
+/**
+ * Goc lap rap — NOI DUY NHAT duoc noi adapter vao pipeline.
+ *
+ * Spine cam `pipeline` va `ui` import thang `adapters`; chung chi duoc nhan qua
+ * tiem phu thuoc. Day la tang tiem do.
+ *
+ * Vi sao tach ra khoi `MainActivity`: `CaptureService` cua Epic 3 can y HET
+ * cach nap nay. Hai ban sao se troi khoi nhau — va chung se troi o cho kho
+ * thay nhat, la danh sach file mo hinh du phong.
+ */
+object Composition {
+
+    const val TMP = "/data/local/tmp"
+
+    /**
+     * ONNX Runtime ban Android KHONG co `ConvInteger` — op ma ca ba ban luong tu
+     * cua encoder (`_int8` / `_quantized` / `_uint8`) deu dung o lop patch
+     * embedding. Loi chi lo ra TREN MAY; tren PC chay binh thuong vi do la ban
+     * day du. Nen phai dung encoder fp16 hoac fp32.
+     */
+    private val ENCODERS = listOf(
+        "encoder_model_fp16.onnx",   // 172 MB, khong co op luong tu
+        "encoder_model.onnx",        // 343 MB, du phong
+    )
+
+    /** Decoder int8 dung `MatMulInteger` — op nay ORT Android CO ho tro. */
+    private val DECODERS = listOf(
+        "decoder_model_int8.onnx",   // 29.6 MB
+        "decoder_model.onnx",
+    )
+
+    private val REQUIRED = listOf(
+        "detector-v4-s_int8.onnx",
+        "vocab.txt",
+        "gemma-4-E2B-it.litertlm",
+    )
+
+    class Engines(
+        val pipeline: Pipeline,
+        val translator: LiteRtLmTranslator,
+        val typeface: Typeface,
+        /** Font co du dau tieng Viet khong (FR-043). */
+        val fontOk: Boolean,
+    )
+
+    /** File con thieu — `ui` dung de bao nguoi dung lenh `adb push` can chay. */
+    class MissingModels(val files: List<String>) : Exception("thieu ${files.size} file mo hinh")
+
+    private val lock = Mutex()
+
+    @Volatile private var shared: Engines? = null
+
+    /**
+     * Engine dung chung CHO CA TIEN TRINH.
+     *
+     * ⚠️ Do thay tren may that: `MainActivity` va `CaptureService` song trong
+     * CUNG mot tien trinh, va moi ben tu nap mot bo. Log chung minh:
+     *
+     * ```
+     * 11:44:18.161 31347 31378 I MangaTrans: encoder: encoder_model_fp16.onnx (171 MB)
+     * 11:44:18.467 31347 31380 I CaptureSvc: encoder: encoder_model_fp16.onnx (171 MB)
+     * ```
+     *
+     * Cung pid, khac thread => 2 x 171 MB ONNX + 2 x 2.6 GB LLM tren may 8 GB.
+     *
+     * `AtomicBoolean` trong `MainActivity` khong cuu duoc: no chi chan Activity
+     * tu nap lai chinh no. Chot phai nam o TIEN TRINH, tuc la o day.
+     *
+     * `Mutex` chu khong phai `@Synchronized`: nap la viec `suspend`, va hai ben
+     * goi gan nhu cung luc thi ben den sau phai CHO ban dau tien xong roi dung
+     * chung, chu khong duoc nap song song.
+     */
+    suspend fun engines(ctx: Context, say: (String) -> Unit): Engines {
+        shared?.let { return it }
+        return lock.withLock {
+            shared ?: build(ctx.applicationContext, say).also { shared = it }
+        }
+    }
+
+    /**
+     * Nap detector + OCR + LLM. **Khong** ham nong — nguoi goi tu quyet dinh
+     * luc nao goi `warmUp()`, vi AD-24 cho phep nha engine khi ranh.
+     *
+     * @param say noi tien trinh ra ngoai. KHONG ghi noi dung anh hay chu da OCR
+     *   vao day — do la noi dung man hinh rieng cua nguoi dung.
+     */
+    private suspend fun build(ctx: Context, say: (String) -> Unit): Engines = withContext(Dispatchers.IO) {
+        val enc = ENCODERS.map { File(TMP, it) }.firstOrNull { it.exists() }
+        val dec = DECODERS.map { File(TMP, it) }.firstOrNull { it.exists() }
+
+        val missing = REQUIRED.filterNot { File(TMP, it).exists() }.toMutableList()
+        if (enc == null) missing += ENCODERS.first()
+        if (dec == null) missing += DECODERS.first()
+        if (missing.isNotEmpty()) throw MissingModels(missing)
+
+        say("Nạp detector + OCR...")
+        say("  encoder: ${enc!!.name} (${enc.length() / 1_000_000} MB)")
+        say("  decoder: ${dec!!.name} (${dec.length() / 1_000_000} MB)")
+
+        val det = OnnxTextDetector(File(TMP, "detector-v4-s_int8.onnx").absolutePath)
+        val vocab = File(TMP, "vocab.txt").readLines()
+        val ocr = MangaOcrOnnx(enc.absolutePath, dec.absolutePath, vocab)
+
+        // AD-25: 2 luong CPU (58-62 do C thay vi 76-84).
+        // AD-2: CPU la duong DUY NHAT dung duoc tren Adreno 642L.
+        val cfg = PipelineConfig()
+        val translator = LiteRtLmTranslator(
+            File(TMP, "gemma-4-E2B-it.litertlm").absolutePath, cfg,
+        )
+
+        val pipeline = Pipeline(
+            detector = det,
+            ocr = ocr,
+            translator = translator,
+            glossary = JsonGlossaryStore(glossaryFile(ctx)),
+            cache = FileCache(File(ctx.cacheDir, "pages")),
+            cfg = cfg,
+        )
+
+        val typeface = Typeface.SANS_SERIF
+        val fontOk = BubbleRenderer.supportsVietnamese(typeface)
+        say(if (fontOk) "Font: có đủ dấu tiếng Việt ✓" else "CẢNH BÁO: font thiếu dấu tiếng Việt")
+
+        Engines(pipeline, translator, typeface, fontOk)
+    }
+
+    /** Mot cho duy nhat quyet dinh glossary nam o dau. */
+    fun glossaryFile(ctx: Context): File = File(ctx.filesDir, "glossary.json")
+
+    /**
+     * Nap glossary mau neu co va app chua co file rieng — F9 do duoc glossary
+     * keo chat luong tu 46% len 60%, nen de trong la phi.
+     *
+     *   adb push glossary_seed.json /data/local/tmp/
+     */
+    fun seedGlossaryIfEmpty(ctx: Context, say: (String) -> Unit) {
+        val target = glossaryFile(ctx)
+        val seed = File(TMP, "glossary_seed.json")
+        if (seed.exists() && !target.exists()) {
+            target.parentFile?.mkdirs()
+            seed.copyTo(target, overwrite = true)
+            say("Đã nạp glossary mẫu từ ${seed.name}")
+        }
+    }
+}

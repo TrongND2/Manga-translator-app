@@ -331,6 +331,12 @@ Mũi tên là chiều **được phép phụ thuộc**. `domain` không trỏ đ
 
 - **Rule:** N là **tham số cấu hình**, không phải hằng số rải rác. Giá trị khởi điểm là `[ASSUMPTION]` — phải chỉnh theo thói quen đọc thật, không đoán.
 - **Rule:** **cache (FR-060) được tra TRƯỚC khi cân nhắc nạp engine.** Trang đã dịch phải trả ra ngay ở trạng thái `Cold`, không đánh thức engine. Đây là lý do cache có giá trị lớn hơn nhiều so với đánh giá ban đầu — nó vừa tiết kiệm thời gian, vừa tiết kiệm RAM, vừa giảm nhiệt.
+- **Rule:** engine là **singleton cấp TIẾN TRÌNH**, nạp ở gốc lắp ráp (`Composition`), khoá bằng `Mutex`. Mọi thành phần — Activity, Service — đều xin engine từ đó, **không thành phần nào tự nạp**.
+
+  ⚠️ **Đã vi phạm và đã sập:** lần đầu chạy Epic 3, `MainActivity` và `CaptureService` mỗi bên tự nạp một bộ, trong **cùng một tiến trình** — 2 × 171 MB ONNX + 2 × 2.6 GB LLM trên máy 8 GB (`spike/FINDINGS.md` F28). Cờ `AtomicBoolean` trong Activity không cứu được: nó chỉ chặn Activity tự nạp lại chính nó.
+
+  **Chốt chống-nạp-hai-lần phải đặt ở phạm vi của TÀI NGUYÊN, không phải phạm vi của người gọi.** Model sống theo tiến trình, nên chốt cũng phải ở tiến trình.
+
 - **Rule:** **KHÔNG bóp `maxNumTokens` để tiết kiệm RAM.** Đã đo: chỉ tiết kiệm ~160 MB / 3300 MB (5%), trong khi tạo ra chế độ hỏng cứng phụ thuộc độ dài trang — mức 512 đã thất bại với prompt 12 bubble. Giữ mặc định. Nếu buộc phải đặt giới hạn thì tính từ **trang nhiều bubble nhất cộng biên**, không phải trang trung bình.
 
 ### AD-25 — Số luồng CPU là núm điều chỉnh nhiệt, mặc định 2 luồng

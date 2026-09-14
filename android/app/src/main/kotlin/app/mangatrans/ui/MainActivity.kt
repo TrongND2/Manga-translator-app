@@ -16,15 +16,11 @@ import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
+import app.mangatrans.Composition
 import app.mangatrans.adapters.litertlm.LiteRtLmTranslator
-import app.mangatrans.adapters.onnx.MangaOcrOnnx
-import app.mangatrans.adapters.onnx.OnnxTextDetector
-import app.mangatrans.adapters.storage.FileCache
-import app.mangatrans.adapters.storage.JsonGlossaryStore
 import app.mangatrans.domain.PageEvent
 import app.mangatrans.pipeline.BubbleRenderer
 import app.mangatrans.pipeline.Pipeline
-import app.mangatrans.pipeline.PipelineConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -78,6 +74,27 @@ class MainActivity : AppCompatActivity() {
             text = "Dùng ảnh mẫu (/data/local/tmp/test_page.jpg)"
             setOnClickListener { translateFile(File(TMP, "test_page.jpg")) }
         }
+        // Epic 3 — day la duong vao THAT cua san pham. Man hinh chon file chi
+        // con dung de go loi pipeline.
+        val overlayBtn = Button(this).apply {
+            text = "Bật icon dịch màn hình"
+            setOnClickListener {
+                if (OverlayLauncher.start(this@MainActivity)) {
+                    say("Đã bật icon nổi. Mở trang truyện rồi chạm icon để dịch.")
+                }
+            }
+        }
+        val stopOverlayBtn = Button(this).apply {
+            text = "Tắt icon dịch màn hình"
+            setOnClickListener { OverlayLauncher.stop(this@MainActivity); say("Đã tắt icon nổi.") }
+        }
+        val guideBtn = Button(this).apply {
+            text = "Hướng dẫn sử dụng"
+            setOnClickListener {
+                startActivity(android.content.Intent(this@MainActivity, GuideActivity::class.java))
+            }
+        }
+
         // FR-033/FR-034 — sau moi trang dich, muc tu de xuat don o day cho xac nhan.
         val glossaryBtn = Button(this).apply {
             text = "Từ điển riêng"
@@ -93,16 +110,34 @@ class MainActivity : AppCompatActivity() {
             addView(LinearLayout(this@MainActivity).apply {
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER_HORIZONTAL
-                addView(pickBtn); addView(sampleBtn); addView(glossaryBtn)
+                addView(overlayBtn); addView(stopOverlayBtn)
+                addView(guideBtn); addView(glossaryBtn)
+                addView(pickBtn); addView(sampleBtn)
                 addView(log); addView(image)
             })
         })
 
-        // GlossaryActivity de exported=false (dung), nen khong mo thang bang adb
-        // duoc. Mo qua day de kiem tra tay:
+        // GlossaryActivity va CaptureService deu de exported=false (dung), nen
+        // khong goi thang bang adb duoc. Mo qua day de kiem tra tay:
         //   adb shell am start -n app.mangatrans/.ui.MainActivity --ez glossary true
+        //   adb shell am start -n app.mangatrans/.ui.MainActivity --ez overlay true
         if (intent?.getBooleanExtra("glossary", false) == true) {
             startActivity(GlossaryActivity.intent(this))
+        }
+        if (intent?.getBooleanExtra("overlay", false) == true) {
+            OverlayLauncher.start(this)
+        }
+        // Chi HIEN anh mau, khong dich — de co mot trang truyen tren man hinh
+        // ma thu icon noi. Anh chiem het man de giong canh doc that.
+        //   adb shell am start -n app.mangatrans/.ui.MainActivity --ez show true
+        if (intent?.getBooleanExtra("show", false) == true) {
+            val f = File(TMP, "test_page.jpg")
+            if (f.exists()) {
+                setContentView(ImageView(this).apply {
+                    scaleType = ImageView.ScaleType.FIT_CENTER
+                    setImageBitmap(BitmapFactory.decodeFile(f.absolutePath))
+                })
+            }
         }
 
         lifecycleScope.launch {
@@ -124,78 +159,36 @@ class MainActivity : AppCompatActivity() {
         runOnUiThread { log.append(s + "\n") }
     }
 
-    private suspend fun setup() = withContext(Dispatchers.IO) {
+    /**
+     * Nap engine qua `Composition` — cung mot duong ma `CaptureService` dung.
+     * Hai ban sao cua doan nay se troi khoi nhau o cho kho thay nhat, la danh
+     * sach file mo hinh du phong.
+     */
+    private suspend fun setup() {
         // Activity co the bi tao lai (doi theme, xoay man hinh...). Nap model hai
         // lan = 2 x 171 MB = OOM chac chan. Da gap that tren M52.
-        if (!setupOnce.compareAndSet(false, true)) return@withContext
-        // ONNX Runtime ban Android KHONG co `ConvInteger` — op ma ca ba ban
-        // luong tu cua encoder (_int8/_quantized/_uint8) deu dung o lop patch
-        // embedding. Loi chi lo ra TREN MAY; tren PC chay binh thuong vi do la
-        // ban day du. Nen phai dung encoder fp16 hoac fp32.
-        //
-        // Decoder int8 dung `MatMulInteger` — op nay ORT Android co ho tro.
-        val encoderCandidates = listOf(
-            "encoder_model_fp16.onnx",   // 172 MB, khong co op luong tu
-            "encoder_model.onnx",        // 343 MB, du phong
-        )
-        val decoderCandidates = listOf(
-            "decoder_model_int8.onnx",   // 29.6 MB, MatMulInteger — ORT Android ho tro
-            "decoder_model.onnx",
-        )
-        val encFile = encoderCandidates.map { File(TMP, it) }.firstOrNull { it.exists() }
-        val decFile = decoderCandidates.map { File(TMP, it) }.firstOrNull { it.exists() }
+        if (!setupOnce.compareAndSet(false, true)) return
 
-        val need = listOf("detector-v4-s_int8.onnx", "vocab.txt", "gemma-4-E2B-it.litertlm")
-        val missing = need.filterNot { File(TMP, it).exists() }.toMutableList()
-        if (encFile == null) missing += encoderCandidates.first()
-        if (decFile == null) missing += decoderCandidates.first()
-        if (missing.isNotEmpty()) {
-            say("Thiếu file, đẩy lên bằng adb push:")
-            missing.forEach { say("  adb push $it $TMP/") }
-            return@withContext
+        Composition.seedGlossaryIfEmpty(this) { say(it) }
+
+        val engines = runCatching { Composition.engines(this) { say(it) } }.getOrElse { err ->
+            when (err) {
+                is Composition.MissingModels -> {
+                    say("Thiếu file, đẩy lên bằng adb push:")
+                    err.files.forEach { say("  adb push $it ${Composition.TMP}/") }
+                }
+                else -> say("Lỗi nạp mô hình: ${err.message}")
+            }
+            return
         }
 
-        say("Nạp detector + OCR...")
-        say("  encoder: ${encFile!!.name} (${encFile.length() / 1_000_000} MB)")
-        say("  decoder: ${decFile!!.name} (${decFile.length() / 1_000_000} MB)")
-        val det = OnnxTextDetector(File(TMP, "detector-v4-s_int8.onnx").absolutePath)
-        val vocab = File(TMP, "vocab.txt").readLines()
-        val ocr = MangaOcrOnnx(encFile.absolutePath, decFile.absolutePath, vocab)
-
-        // AD-25: 2 luong CPU. AD-2: CPU la duong duy nhat tren Adreno 642L.
-        val cfg = PipelineConfig()
-        val tr = LiteRtLmTranslator(File(TMP, "gemma-4-E2B-it.litertlm").absolutePath, cfg)
-        translator = tr
-
-        // Nap san glossary neu co file mau — F9 da do: glossary keo 46% -> 60%.
-        //   adb push glossary_seed.json /data/local/tmp/
-        // Mot cho duy nhat quyet dinh glossary nam o dau — GlossaryActivity mo
-        // dung file nay. Viet lai chuoi "glossary.json" o day la loi chia doi.
-        val glossaryFile = GlossaryActivity.file(this@MainActivity)
-        val seed = File(TMP, "glossary_seed.json")
-        if (seed.exists() && !glossaryFile.exists()) {
-            glossaryFile.parentFile?.mkdirs()
-            seed.copyTo(glossaryFile, overwrite = true)
-            say("Đã nạp glossary mẫu từ ${seed.name}")
-        }
-
-        pipeline = Pipeline(
-            detector = det,
-            ocr = ocr,
-            translator = tr,
-            glossary = JsonGlossaryStore(glossaryFile),
-            cache = FileCache(File(cacheDir, "pages")),
-            cfg = cfg,
-        )
-
-        // FR-043 — kiem font co du dau tieng Viet, khong tin ten font.
-        typeface = Typeface.SANS_SERIF
-        val ok = BubbleRenderer.supportsVietnamese(typeface)
-        say(if (ok) "Font: có đủ dấu tiếng Việt ✓" else "CẢNH BÁO: font thiếu dấu tiếng Việt")
+        pipeline = engines.pipeline
+        translator = engines.translator
+        typeface = engines.typeface
 
         say("Sẵn sàng. Đang hâm nóng LLM (AD-20, mất 15–30 giây)...")
         val t = System.currentTimeMillis()
-        runCatching { tr.warmUp() }
+        runCatching { engines.translator.warmUp() }
             .onSuccess { say("LLM sẵn sàng sau ${(System.currentTimeMillis() - t) / 1000}s") }
             .onFailure { say("Lỗi nạp LLM: ${it.message}") }
     }

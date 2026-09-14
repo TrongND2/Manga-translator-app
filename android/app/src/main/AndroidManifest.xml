@@ -1,6 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Epic 3 — icon noi tren moi app. Nguoi dung phai tu bat trong Cai dat;
+         khong co hop thoai xin nhanh nao cho quyen nay. -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+
+    <!-- Foreground service giu phien chup song trong khi nguoi dung o app khac.
+         Tu Android 14, loai `mediaProjection` phai khai bao RIENG, va phai
+         nhac lai luc goi startForeground() — thieu la SecurityException. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+
+    <!-- Thong bao thuong truc cua foreground service (Android 13+ moi can xin). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
     <application
         android:label="Manga Translator"
         android:icon="@android:drawable/ic_menu_view"
@@ -33,5 +46,24 @@
             android:name=".ui.GlossaryActivity"
             android:label="Từ điển riêng"
             android:exported="false" />
+        <!-- Story 3.2 — AD-21: CHU SO HUU DUY NHAT cua MediaProjection. -->
+        <service
+            android:name=".service.CaptureService"
+            android:exported="false"
+            android:foregroundServiceType="mediaProjection" />
+
+        <!-- Story 3.2 — man hinh trong suot, chi song du lau de xin quyen chup. -->
+        <activity
+            android:name=".ui.ProjectionRequestActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
+        <!-- Story 3.10 — huong dan su dung, mo tu icon con hinh quyen sach. -->
+        <activity
+            android:name=".ui.GuideActivity"
+            android:label="Hướng dẫn sử dụng"
+            android:exported="false" />
+
     </application>
 </manifest>

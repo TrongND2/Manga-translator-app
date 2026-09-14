@@ -122,6 +122,42 @@ private val JAPANESE = Regex("[\u3040-\u30FF\u4E00-\u9FFF]")
 fun isUsableSurface(s: String): Boolean =
     s.isNotBlank() && s != "?" && JAPANESE.containsMatchIn(s)
 
+/**
+ * AD-11 — thu ma `ScreenSource` phai tam an truoc khi chup.
+ *
+ * Chu ky co y bat buoc dung khoi lenh chu khong phai cap `hide()` / `show()`:
+ * quen goi `show()` lam nguoi dung mat sach giao dien ma khong hieu vi sao.
+ * Voi khoi lenh thi `finally` lo viec hien lai, ke ca khi chup nem loi.
+ */
+interface OverlayGate {
+    suspend fun <T> hiddenForCapture(block: suspend () -> T): T
+}
+
+/** Khong co lop phu nao de an — dung cho man hinh chon file cua Epic 2 va cho test. */
+object NoOverlays : OverlayGate {
+    override suspend fun <T> hiddenForCapture(block: suspend () -> T): T = block()
+}
+
+/**
+ * Vi sao mot lan chup that bai — de `ui` noi bang tieng nguoi (FR-013/014, Story 3.8).
+ *
+ * La `sealed` chu khong phai chuoi loi: moi nhanh doi mot cach xu ly KHAC NHAU,
+ * va trinh bien dich se bao neu quen nhanh nao.
+ */
+sealed interface CaptureFailure {
+    /** App dang doc dat `FLAG_SECURE`. Gioi han nen tang, KHONG co cach vong. */
+    data object ScreenProtected : CaptureFailure
+    /** He dieu hanh thu hoi phien, hoac nguoi dung khoa man hinh (AD-21). Phai xin lai. */
+    data object SessionRevoked : CaptureFailure
+    /** Chua tung xin quyen. */
+    data object NoPermission : CaptureFailure
+    /** Het gio cho frame. */
+    data object Timeout : CaptureFailure
+}
+
+class CaptureException(val failure: CaptureFailure, cause: Throwable? = null) :
+    Exception(failure.toString(), cause)
+
 /** Nguon anh. Buoc 0. */
 interface ScreenSource {
     /**

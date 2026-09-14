@@ -1,0 +1,154 @@
+package app.mangatrans.adapters.overlay
+
+import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.PixelFormat
+import android.graphics.Typeface
+import android.os.Build
+import android.view.Gravity
+import android.view.View
+import android.view.WindowManager
+import app.mangatrans.domain.Bubble
+import app.mangatrans.pipeline.BubbleRenderer
+
+/**
+ * Story 3.4 / 3.7 — lop ve ban dich de len man hinh.
+ *
+ * AD-10: chi VE, khong bao gio sua app ben duoi. Go lop nay ra la chu Nhat goc
+ * hien lai nguyen ven — do la ly do FR-006 dung mien phi.
+ *
+ * AD-12: lop phu mang `frameHash` cua anh sinh ra no. Doi noi dung ben duoi la
+ * tu xoa ngay, khong cho luot dich moi. Tha mat ban dich con hon hien ban dich
+ * sai cho.
+ */
+class TranslationOverlay(
+    private val ctx: Context,
+    private val wm: WindowManager,
+    /** Story 3.6 — cham giu trong vung bubble de liec nguyen ban. */
+    private val onPeekStart: () -> Unit = {},
+    private val onPeekEnd: () -> Unit = {},
+) {
+
+    /**
+     * `frameHash` cua anh da sinh ra lop phu dang hien (AD-12/AD-18).
+     * **Khong** phai `contentKey` — hai hash, hai vai.
+     */
+    var frameHash: String? = null
+        private set
+
+    private var typeface: Typeface = Typeface.SANS_SERIF
+
+    /** Anh chup goc — dung de lay mau mau nen bubble. */
+    private var source: Bitmap? = null
+
+    /** AD-11 — anh da bi cat status bar, nen toa do phai bu lai khi ve len man hinh. */
+    private var offsetY = 0
+
+    private val bubbles = LinkedHashMap<Int, Bubble>()
+
+    private val view = object : View(ctx) {
+        override fun onDraw(canvas: Canvas) {
+            val src = source ?: return
+            canvas.save()
+            canvas.translate(0f, offsetY.toFloat())
+            BubbleRenderer.drawPage(canvas, bubbles.values.toList(), typeface) {
+                BubbleRenderer.sampleBackground(src, it)
+            }
+            canvas.restore()
+        }
+    }
+
+    private var attached = false
+
+    /** Bat dau mot luot moi. Xoa sach lop cu TRUOC khi ve cai gi khac len. */
+    fun begin(source: Bitmap, frameHash: String, statusBarPx: Int, typeface: Typeface) {
+        this.source = source
+        this.frameHash = frameHash
+        this.offsetY = statusBarPx
+        this.typeface = typeface
+        bubbles.clear()
+        attach()
+        view.invalidate()
+    }
+
+    /** FR-044 — hien dan tung bubble ngay khi co, khong cho du ca man. */
+    fun add(bubble: Bubble) {
+        bubbles[bubble.id] = bubble
+        refresh()
+    }
+
+    /** AD-17 — go bubble da ve. Ve lai tu dau => chu Nhat goc hien lai. */
+    fun retract(ids: Collection<Int>) {
+        ids.forEach { bubbles.remove(it) }
+        refresh()
+    }
+
+    /** AD-12 — noi dung ben duoi doi, hoac ca trang bi tu choi: xoa het. */
+    fun clear() {
+        bubbles.clear()
+        frameHash = null
+        source?.let { if (!it.isRecycled) it.recycle() }
+        source = null
+        detach()
+    }
+
+    /** Story 3.6 — an tam trong luc nguoi dung giu de liec nguyen ban. */
+    fun setPeeking(peeking: Boolean) {
+        view.visibility = if (peeking) View.INVISIBLE else View.VISIBLE
+        if (peeking) onPeekStart() else onPeekEnd()
+    }
+
+    /** AD-11 — an tam de chup. */
+    fun setVisibleForCapture(visible: Boolean) {
+        view.visibility = if (visible) View.VISIBLE else View.INVISIBLE
+    }
+
+    val hasContent: Boolean get() = bubbles.isNotEmpty()
+
+    private fun refresh() = view.invalidate()
+
+    private fun attach() {
+        if (attached) return
+        wm.addView(view, params())
+        attached = true
+    }
+
+    private fun detach() {
+        if (!attached) return
+        runCatching { wm.removeView(view) }
+        attached = false
+    }
+
+    /**
+     * Story 3.7 — NGOAI vung bubble, lop phu khong duoc chan gi: vuot, cuon,
+     * cham cua app ben duoi phai binh thuong.
+     *
+     * Cach dat duoc dieu do: cua so nay `FLAG_NOT_TOUCHABLE` — no KHONG BAO GIO
+     * nhan cham, nen khong the chan gi ca.
+     *
+     * Ban dau toi dinh dung `TOUCHABLE_INSETS_REGION` de vua ve vua nhan cham
+     * trong vung bubble (phuc vu Story 3.6). **Khong dung duoc:**
+     * `ViewTreeObserver.OnComputeInternalInsetsListener` va `InternalInsetsInfo`
+     * la API `@hide`, khong co trong SDK cong khai.
+     *
+     * Nen Story 3.6 (cham giu de liec nguyen ban) se can cac cua so nho RIENG
+     * dat de len tung bubble — chua lam.
+     */
+    private fun params() = WindowManager.LayoutParams(
+        WindowManager.LayoutParams.MATCH_PARENT,
+        WindowManager.LayoutParams.MATCH_PARENT,
+        overlayType(),
+        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+            WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
+            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+        PixelFormat.TRANSLUCENT,
+    ).apply { gravity = Gravity.TOP or Gravity.START }
+
+    private fun overlayType() =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+        else
+            @Suppress("DEPRECATION") WindowManager.LayoutParams.TYPE_PHONE
+}
