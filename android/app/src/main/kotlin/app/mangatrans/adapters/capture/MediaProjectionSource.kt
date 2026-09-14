@@ -11,6 +11,7 @@ import android.media.projection.MediaProjection
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import app.mangatrans.adapters.storage.PageHash
 import app.mangatrans.ports.CaptureException
 import app.mangatrans.ports.CaptureFailure
 import app.mangatrans.ports.OverlayGate
@@ -132,6 +133,32 @@ class MediaProjectionSource(
 
         val cropped = cropStatusBar(bitmap)
         return PageImage(cropped.width, cropped.height, cropped)
+    }
+
+    /**
+     * Story 3.7 / AD-12 — nhin mot frame MOI neu co, de biet noi dung ben duoi
+     * da doi chua. Tra `null` khi chua co frame moi.
+     *
+     * Re vi hai le:
+     *   1. `VirtualDisplay` chi sinh frame khi man hinh CO thay doi, nen luc
+     *      dung yen thi `acquireLatestImage()` tra null ngay.
+     *   2. Ham nay **khong** an lop phu. Lop phu dung yen nen no khong lam hash
+     *      doi; chi noi dung ben duoi doi moi lam hash doi. An lop phu de "nhin
+     *      cho ky" se lam man hinh chop giat lien tuc.
+     *
+     * Cat bo status bar y nhu `capture()`: dong ho nhay phut khong duoc tinh la
+     * "nguoi dung sang trang".
+     */
+    fun peekFrameHash(): String? {
+        if (stopped.get() || released.get()) return null
+        val r = reader ?: return null
+        val image = runCatching { r.acquireLatestImage() }.getOrNull() ?: return null
+        return image.use {
+            val bmp = toBitmap(it)
+            val hash = runCatching { PageHash.frameHash(bmp, statusBarPx) }.getOrNull()
+            bmp.recycle()
+            hash
+        }
     }
 
     private suspend fun grabFrame(): Bitmap {

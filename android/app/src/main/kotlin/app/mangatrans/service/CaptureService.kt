@@ -36,6 +36,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -61,6 +63,12 @@ class CaptureService : Service() {
         const val EXTRA_RESULT_CODE = "resultCode"
         const val EXTRA_RESULT_DATA = "resultData"
 
+        /** Cho lop phu ve xong roi moi lay moc so sanh. */
+        private const val SETTLE_MS = 700L
+
+        /** Nhip hoi "co frame moi khong". Du nhanh de bat cu vuot sang trang. */
+        private const val POLL_MS = 350L
+
         fun stopIntent(ctx: Context) = Intent(ctx, CaptureService::class.java)
             .setAction(ACTION_STOP)
     }
@@ -75,6 +83,9 @@ class CaptureService : Service() {
 
     /** Mot luot dich dang chay. Cham lan nua khi dang chay thi bo qua, khong xep hang. */
     private var running: Job? = null
+
+    /** Story 3.7 — canh noi dung ben duoi doi de go lop phu. */
+    private var watching: Job? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -176,6 +187,7 @@ class CaptureService : Service() {
         val p = pipeline ?: run { toast("Đang chuẩn bị, đợi một chút"); return }
         if (running?.isActive == true) return   // dang chay, bo qua cham thua
 
+        watching?.cancel()
         running = scope.launch { translateOnce(src, p) }
     }
 
@@ -252,8 +264,48 @@ class CaptureService : Service() {
         }.onFailure { Log.e(TAG, "luot dich hong: ${it.javaClass.simpleName}") }
 
         Log.i(TAG, "xong: ve $drawn bubble")
+        if (drawn > 0) watchForPageChange(src) else ov.clearPage()
         setIconState(if (src.isAlive) FloatingIcon.State.Ready else FloatingIcon.State.NeedPermission)
         if (drawn == 0) toast("Không tìm thấy bóng thoại nào trên màn hình")
+    }
+
+    /**
+     * Story 3.7 / AD-12 — noi dung ben duoi doi thi go lop phu NGAY, khong cho
+     * luot dich moi.
+     *
+     * **Tha mat ban dich con hon hien ban dich sai cho.** Ban dich trang truoc
+     * nam de len trang sau la loi nang nhat cua tang hien thi: nguoi doc thay
+     * chu Viet troi chay ma noi dung khong lien quan gi den tranh, va khong co
+     * dau hieu nao bao do la cua trang khac.
+     *
+     * Cach biet: `VirtualDisplay` von da dang chay, va no CHI sinh frame khi man
+     * hinh co thay doi. Nen chi can hoi no co frame moi khong. Luc dung yen thi
+     * phep hoi nay khong ton gi.
+     *
+     * Moc so sanh lay SAU khi da ve xong lop phu — lop phu dung yen nen khong
+     * lam hash doi; chi noi dung ben duoi doi moi lam doi.
+     */
+    private fun watchForPageChange(src: MediaProjectionSource) {
+        watching?.cancel()
+        watching = scope.launch {
+            // Cho lop phu ve xong roi moi lay moc, neu khong thi chinh no lam
+            // hash doi va lop phu tu xoa minh ngay lap tuc.
+            delay(SETTLE_MS)
+            var baseline: String? = null
+            while (isActive && src.isAlive) {
+                val now = src.peekFrameHash()
+                if (now != null) {
+                    if (baseline == null) {
+                        baseline = now
+                    } else if (now != baseline) {
+                        Log.i(TAG, "noi dung ben duoi doi — go lop phu")
+                        overlays?.clearPage()
+                        return@launch
+                    }
+                }
+                delay(POLL_MS)
+            }
+        }
     }
 
     private fun requestProjection() {
@@ -267,6 +319,7 @@ class CaptureService : Service() {
 
     private fun closeEverything() {
         running?.cancel()
+        watching?.cancel()
         scope.launch {
             runCatching { engines?.translator?.release() }   // AD-24
         }
