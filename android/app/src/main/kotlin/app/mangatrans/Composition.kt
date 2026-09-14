@@ -130,6 +130,7 @@ object Composition {
         val cfg = PipelineConfig()
         val translator = LiteRtLmTranslator(
             store.find("gemma-4-E2B-it.litertlm")!!.absolutePath, cfg,
+            cacheDir = File(ctx.cacheDir, "litertlm").apply { mkdirs() }.absolutePath,
         )
 
         val pipeline = Pipeline(

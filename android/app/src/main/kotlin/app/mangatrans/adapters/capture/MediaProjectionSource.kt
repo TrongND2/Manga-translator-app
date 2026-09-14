@@ -91,9 +91,10 @@ class MediaProjectionSource(
     /** Phien con dung duoc khong — `ui` hoi de hien dung trang thai icon. */
     val isAlive: Boolean get() = !stopped.get() && !released.get()
 
+    /** @return true neu vua TAO MOI display (frame dau tien chua dang tin). */
     @SuppressLint("WrongConstant")
-    private fun ensureDisplay() {
-        if (display != null) return
+    private fun ensureDisplay(): Boolean {
+        if (display != null) return false
         val r = ImageReader.newInstance(widthPx, heightPx, PixelFormat.RGBA_8888, MAX_IMAGES)
         reader = r
         display = projection.createVirtualDisplay(
@@ -102,6 +103,7 @@ class MediaProjectionSource(
             DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
             r.surface, null, handler,
         )
+        return true
     }
 
     /**
@@ -112,12 +114,26 @@ class MediaProjectionSource(
         if (stopped.get()) throw CaptureException(CaptureFailure.SessionRevoked)
         if (released.get()) throw CaptureException(CaptureFailure.NoPermission)
 
+        // ⚠️ Vut frame cu **TRUOC KHI** an lop phu, khong phai sau.
+        //
+        // `VirtualDisplay` chi sinh frame khi man hinh CO thay doi. An lop phu
+        // la mot thay doi, nen no de lai dung MOT frame — va do la frame ta
+        // can. Ban cu vut vai frame o `grabFrame()` sau khi da an, tuc vut
+        // trung ngay chinh no, roi ngoi cho mot frame nua khong bao gio den.
+        //
+        // Man hinh cang tinh thi cang chac chet: do tren may, Perfect Viewer
+        // mo toan man mot trang tinh (khong ca dong ho) thi **lan nao cung
+        // Timeout**. Mo Gallery thi thoat, vi dong ho tren thanh trang thai
+        // nhay giay nen luc nao cung co frame moi. Mot loi chi lo ra o dung
+        // canh dung that (F42).
+        drainFrames()
+
         val bitmap = overlays.hiddenForCapture {
             // Cho he thong ve xong mot nhip sau khi go lop phu. Khong co cho nay
             // thi anh chup con dinh icon va ban dich cu — dung loi AD-11 chan.
             delay(HIDE_SETTLE_MS)
-            ensureDisplay()
-            grabFrame()
+            val fresh = ensureDisplay()
+            grabFrame(warmup = fresh)
         }
 
         if (stopped.get()) throw CaptureException(CaptureFailure.SessionRevoked)
@@ -177,12 +193,15 @@ class MediaProjectionSource(
         repeat(MAX_IMAGES + 1) { runCatching { r.acquireLatestImage()?.close() } }
     }
 
-    private suspend fun grabFrame(): Bitmap {
+    /**
+     * @param warmup chi dat true khi `VirtualDisplay` VUA DUOC TAO — luc do vai
+     *   frame dau that su chua dang tin. Dat true cho moi lan chup la cach
+     *   chac chan de vut mat dung frame minh dang cho (xem `capture()`).
+     */
+    private suspend fun grabFrame(warmup: Boolean): Bitmap {
         val r = reader ?: throw CaptureException(CaptureFailure.NoPermission)
 
-        // Bo vai frame dau: VirtualDisplay vua tao hay tra frame rong hoac con
-        // dinh lop phu cu.
-        repeat(WARMUP_FRAMES) { runCatching { r.acquireLatestImage()?.close() } }
+        if (warmup) repeat(WARMUP_FRAMES) { runCatching { r.acquireLatestImage()?.close() } }
 
         val image = withTimeoutOrNull(FRAME_TIMEOUT_MS) { awaitImage(r) }
             ?: throw CaptureException(CaptureFailure.Timeout)

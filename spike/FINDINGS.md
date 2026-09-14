@@ -1483,6 +1483,106 @@ Quy tắc rút ra: `git diff --stat` mà hiện `Bin` cho một file mã nguồn
 
 ---
 
+## F41 — Vẫn bị giết sau khi đã sửa F37, và lần này nguyên nhân nằm ở *loại* bộ nhớ chứ không phải lượng
+
+Người dùng mở truyện bằng Perfect Viewer (trang lưu sẵn trong máy) và app vẫn chết giữa lúc dịch, dù F37 đã kéo bộ nhớ lúc rảnh xuống 74 MB.
+
+```
+lmkd: Reclaim 'app.mangatrans' ... to free 3817964kB rss, 248224kB swap
+ActivityManager: Process app.mangatrans (pid 26734) has died: prcp FGS
+```
+
+**3,82 GB RSS** — cao hơn hẳn đỉnh 2,97 GB tôi đo được ở lần trước. Lấy mẫu mỗi giây thay vì mỗi 5 giây thì thấy tại sao: đỉnh thật nằm gọn giữa hai lần lấy mẫu cũ. Bài học nhỏ: **nhịp lấy mẫu là một phần của phép đo, không phải chi tiết kỹ thuật.**
+
+Đường đi của bộ nhớ, trang chỉ có 2 bóng thoại:
+
+```
+01:11:59  RSS   115 MB   ← lúc rảnh (F37 chạy đúng)
+01:12:07  RSS   368 MB   ← đọc chữ
+01:12:23  RSS  2855 MB   ← nạp xong LLM
+01:12:37  RSS  2810 MB   ← đang prefill, phẳng 14 giây
+01:12:45  RSS  3652 MB   ← vọt 800 MB trong 5 giây rồi chết
+```
+
+### Đoán sai một lần nữa
+
+`javap` trên AAR cho thấy `EngineConfig` có `maxNumTokens`. Giả thuyết: không đặt thì bộ đệm ngữ cảnh cấp phát theo ngữ cảnh mặc định của Gemma 4, thừa rất nhiều. Đặt `maxNumTokens = 4096`, chạy lại: **chết ở 3.722 MB, đường bộ nhớ giống hệt**. Giả thuyết chết.
+
+(Đã gỡ lại. Một cái chốt không chứng minh được tác dụng mà lại có đường hỏng âm thầm — trang nhiều thoại bị cắt cụt bản dịch, không báo gì — thì là nợ chứ không phải lãi.)
+
+### Phép đo trả lời
+
+Không đoán nữa, đọc phân loại bộ nhớ lúc đang dịch:
+
+| | RSS | tính chất |
+|---|---|---|
+| **Native Heap** | **1.854 MB** (cấp phát 2.607 MB) | ẩn danh, **bẩn** — chỉ nén vào swap được |
+| Other mmap | 944 MB | ánh xạ file, **sạch** — hệ thống vứt đi rồi đọc lại được |
+
+Đây mới là câu trả lời, và nó không phải câu hỏi "tốn bao nhiêu" mà là **"tốn loại gì"**. Trang sạch thì lúc thiếu bộ nhớ hệ thống chỉ việc vứt đi; trang bẩn thì phải nén vào swap, swap hết thì nó giết app. Thư viện đang **chép phần lớn trọng số vào heap** thay vì ánh xạ từ file.
+
+Cũng vì thế mà hai lần đo trước có vẻ mâu thuẫn: lần chạy với Gallery sống sót vì nén được 1,2 GB vào swap, lần với Perfect Viewer chết vì chỉ nén được 296 MB. **Cùng một lượng bộ nhớ, khác kết cục** — sống sót lần đó là may, không phải là đã sửa xong.
+
+### Sửa: `EngineConfig.cacheDir`
+
+Nút cuối cùng còn lại trong `EngineConfig`. Đặt nó trỏ vào `cacheDir` của app. LiteRT-LM ghi ra một file:
+
+```
+gemma-4-E2B-it.litertlm_1789301505_2588147712.xnnpack_cache   788 MB
+```
+
+— trọng số đã sắp xếp lại cho XNNPACK, ghi xuống đĩa một lần rồi **mmap** vào. Trang sạch, vứt được.
+
+Đo trên cùng một trang, cùng máy:
+
+| | không `cacheDir` | có `cacheDir` |
+|---|---|---|
+| Native Heap (bẩn) | 1.854 MB | **724 MB** |
+| Other mmap (sạch) | 944 MB | 974 MB |
+| đỉnh RSS | 3.739 MB → **bị giết** | **1.820–2.056 MB**, xong việc |
+| nạp engine | 13.574 ms | **654 ms** |
+| prefill | 27.661 ms | **13.183 ms** |
+| cả trang 12 bóng | 2 phút 11 | **1 phút 44** |
+
+Giá phải trả: **753 MB đĩa**. Nó nằm trong `cacheDir` nên Android được phép xoá khi máy hết chỗ — mất thì lần nạp sau tự dựng lại, chậm một lần rồi thôi.
+
+### Quy tắc rút ra
+
+**Với chuyện bị giết vì thiếu bộ nhớ, "bao nhiêu MB" là câu hỏi sai. Câu đúng là "bẩn hay sạch".** `dumpsys meminfo` trả lời câu đó trong một dòng, mà tôi đi qua nó hai vòng mới chịu đọc.
+
+**Và: một lần chạy sống sót không phải bằng chứng đã sửa.** Lần chạy với Gallery sống chỉ vì lúc đó máy còn swap. Muốn biết đã sửa thật thì phải nhìn cơ chế, không nhìn kết cục một lần chạy.
+
+---
+
+## F42 — Chụp màn hình hết giờ trên màn hình quá tĩnh, và chỉ lộ ra ở app đọc truyện thật
+
+Khi dựng lại cảnh của người dùng (Perfect Viewer mở toàn màn), `capture()` **hết giờ lần nào cũng như lần nào**:
+
+```
+CaptureSvc: chup hong: Timeout
+```
+
+Chính cái log mã lỗi thêm ở F38 chỉ ra được ngay — nếu không thì đây lại là một lần "chạm icon mà chẳng thấy gì".
+
+Nguyên nhân nằm ở thứ tự trong `grabFrame()`:
+
+```kotlin
+repeat(WARMUP_FRAMES) { r.acquireLatestImage()?.close() }   // vứt vài frame đầu
+val image = withTimeoutOrNull(FRAME_TIMEOUT_MS) { awaitImage(r) }
+```
+
+`VirtualDisplay` **chỉ sinh frame khi màn hình có thay đổi**. Việc ẩn lớp phủ đi để chụp là một thay đổi, nên nó để lại đúng **một** frame — và đó chính là frame ta cần. Dòng `repeat` vứt trúng ngay nó, rồi ngồi chờ một frame nữa không bao giờ đến.
+
+**Vì sao suốt 4 epic không ai thấy:** mọi lần thử đều dùng Gallery hoặc ảnh mẫu, nơi thanh trạng thái luôn hiện và **đồng hồ nhảy giây** nên lúc nào cũng có frame mới. App đọc truyện thật chạy toàn màn hình, trang đứng im tuyệt đối, không cả đồng hồ — không có gì sinh frame cả.
+
+Sửa: vứt frame cũ **trước khi** ẩn lớp phủ (`drainFrames()` ở đầu `capture()`), và chỉ bỏ frame khởi động khi `VirtualDisplay` **vừa được tạo mới** — `ensureDisplay()` giờ trả về `Boolean` để nói điều đó.
+
+### Quy tắc rút ra
+
+**Môi trường thử nghiệm có thể đang âm thầm che lỗi bằng một đặc điểm không ai để ý.** Ở đây là cái đồng hồ trên thanh trạng thái. Danh sách "cần thử trên gì" phải có **đúng loại app mà người dùng thật sẽ dùng**, không phải thứ tiện tay nhất để dựng.
+
+---
+
 ## Còn nợ
 
 | # | Việc | Chặn gì | Trạng thái |

@@ -38,6 +38,17 @@ class LiteRtLmTranslator(
     private val modelPath: String,
     private val cfg: PipelineConfig = PipelineConfig(),
     private val useGpu: Boolean = false,
+    /**
+     * Thu muc LiteRT-LM duoc phep dung lam bo nho dem tren dia.
+     *
+     * Do tren M52 luc dang dich: `Native Heap` 1.854 MB **ban** (chi nen vao
+     * swap duoc, khong vut di duoc) con `Other mmap` 944 MB **sach**. Tuc thu
+     * vien chep phan lon trong so vao heap chu khong anh xa tu file — va chinh
+     * 1,85 GB ban do lam Android chon giet app (F41).
+     *
+     * `null` = khong dat, de thu vien tu quyet.
+     */
+    private val cacheDir: String? = null,
 ) : Translator {
 
     private companion object {
@@ -54,7 +65,13 @@ class LiteRtLmTranslator(
             if (engine != null) return@withLock
             val backend = if (useGpu) Backend.GPU() else Backend.CPU(cfg.cpuThreads, null)
             val t0 = System.currentTimeMillis()
-            val e = Engine(EngineConfig(modelPath = modelPath, backend = backend))
+            val e = Engine(
+                EngineConfig(
+                    modelPath = modelPath,
+                    backend = backend,
+                    cacheDir = cacheDir,
+                )
+            )
             e.initialize()
             engine = e
             // Da do tren M52: 15-29 s. Google canh bao "toi 10 giay" — thuc te gap 3x.
