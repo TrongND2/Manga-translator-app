@@ -951,6 +951,16 @@ Nguy hiểm ở chỗ: nếu mục đề xuất tự động vào prompt (không
 1. **Tại nguồn** — `ports.isUsableSurface()`: `surface` phải chứa ít nhất một ký tự hiragana / katakana / kanji. Đặt ở `ports` chứ không ở `adapters`, vì cả `pipeline` (lúc đề xuất) lẫn `GlossaryMiner` đều cần, mà `pipeline` không được phép biết đến `adapters`.
 2. **Tại cổng xác nhận** — AD-8 vốn đã có: mục `Proposed` không vào prompt cho tới khi người dùng bấm ✓. Lớp này đã làm đúng việc của nó ở đây: ba mục rác **không** lọt vào bản dịch nào.
 
+### Vòng hai — bộ lọc ở nguồn KHÔNG dọn thứ đã nằm sẵn trong file
+
+Sửa xong `isUsableSurface`, build sạch, test xanh. Mở màn hình từ điển trên máy thật ra nhìn: **ba mục rác vẫn còn nguyên**.
+
+Lý do hiển nhiên khi đã thấy: bộ lọc chặn *đề xuất mới*, nó không đụng gì tới mục đã ghi xuống file từ những lần chạy trước. Không log nào báo sai, không test nào đỏ — chỉ có nhìn màn hình mới thấy.
+
+⇒ `GlossaryActivity` dọn luôn khi mở: mục `Proposed` nào không có ký tự Nhật thì xoá, và báo ra màn hình cái gì vừa bị xoá. Xoá tự động chấp nhận được vì đó là mục **do app tự đẻ ra**, không phải mục người dùng gõ tay, và chúng không bao giờ khớp được với chữ trên trang nên giữ lại cũng vô nghĩa.
+
+**Quy tắc:** sửa một bộ lọc ở nguồn thì phải hỏi tiếp *"dữ liệu cũ đã lọt qua trước đó thì sao?"*. Bộ lọc mới không hồi tố.
+
 ### Quy tắc rút ra
 
 **Cổng xác nhận đã cứu, nhưng chỉ vì có người đi đọc dữ liệu thật.** Ba mục rác nằm yên trong file suốt nhiều phiên mà không log nào báo gì — chúng chỉ lộ ra khi `cat` file glossary trên máy. Nguồn dữ liệu nào do model sinh ra thì phải đi xem tận nơi nó đẻ ra cái gì, đừng chỉ xem nó có chạy không.

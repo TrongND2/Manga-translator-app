@@ -22,6 +22,7 @@ import app.mangatrans.ports.GlossaryEntry
 import app.mangatrans.ports.GlossaryKind
 import app.mangatrans.ports.GlossaryStatus
 import app.mangatrans.ports.GlossaryStore
+import app.mangatrans.ports.isUsableSurface
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -82,6 +83,16 @@ class GlossaryActivity : AppCompatActivity() {
     }
 
     private suspend fun rebuild() {
+        // Don muc app tu nhat nham. `isUsableSurface` chan de xuat MOI, nhung
+        // muc da nam san trong file thi no khong dong toi — va da co ba muc rac
+        // nhu vay tren may that (FINDINGS F27).
+        //
+        // Xoa tu dong duoc vi day la muc DO APP TU DE XUAT, khong phai muc
+        // nguoi dung go tay, va chung khong bao gio khop voi chu tren trang nen
+        // giu lai cung vo nghia. Van bao ra man hinh chu khong lam len.
+        val junk = store.proposed(SERIES).filterNot { isUsableSurface(it.surface) }
+        junk.forEach { store.delete(SERIES, it.surface) }
+
         val proposed = store.proposed(SERIES)
         val confirmed = store.confirmed(SERIES)
 
@@ -100,6 +111,13 @@ class GlossaryActivity : AppCompatActivity() {
                     "Chúng CHƯA được dùng khi dịch — bấm ✓ thì mới dùng."
             ))
             proposed.sortedBy { it.surface }.forEach { root.addView(proposedRow(it)) }
+        }
+
+        if (junk.isNotEmpty()) {
+            root.addView(note(
+                "Đã bỏ ${junk.size} mục app nhặt nhầm (không phải chữ Nhật nên không bao giờ " +
+                    "khớp được với trang truyện): ${junk.joinToString(", ") { it.surface }}"
+            ))
         }
 
         // --- Muc dang dung (FR-033) ---
@@ -198,6 +216,12 @@ class GlossaryActivity : AppCompatActivity() {
                 val s = surface.text.toString().trim()
                 val m = meaning.text.toString().trim()
                 if (s.isEmpty() || m.isEmpty()) { toast("Phải điền cả hai ô"); return@setPositiveButton }
+                // Cung mot luat voi muc app tu de xuat (F27): o nguyen ban phai
+                // khop duoc voi chu tren trang truyen, khong thi vo dung.
+                if (!isUsableSurface(s)) {
+                    toast("Ô nguyên bản phải là chữ Nhật — nó cần khớp với chữ in trên trang truyện")
+                    return@setPositiveButton
+                }
                 lifecycleScope.launch {
                     // Doi surface = doi khoa => phai xoa muc cu.
                     if (old != null && old.surface != s) store.delete(SERIES, old.surface)
