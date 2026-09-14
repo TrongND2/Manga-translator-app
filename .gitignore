@@ -45,3 +45,15 @@ handoff/*.md
 .idea/
 *.iml
 .DS_Store
+
+# --- Tai lieu noi bo: giu tren may, KHONG day len repo cong khai ---
+# Quy trinh lam viec (PRD, kien truc, review, story) va quy uoc rieng cua du an.
+# Nguoi ngoai khong dung duoc ma lai lo nhieu nhat.
+#
+# `spike/FINDINGS.md` thi VAN day len: do la phan that su giup duoc nguoi khac
+# (GPU Adreno sinh rac, ONNX Runtime thieu ConvInteger, vong tron quyen
+# mediaProjection tren Android 14+...).
+_bmad-output/
+CLAUDE.md
+docs/
+handoff/
