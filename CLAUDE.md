@@ -83,7 +83,7 @@ Bản cài ở đây là **BMAD v6 — dạng skills**, không phải v4 dạng 
 - Máy dev: **ROG Ally, Ryzen Z1 Extreme, 10.7GB RAM, iGPU AMD**. Không đại diện cho điện thoại — mọi số đo hiệu năng phải lặp lại trên Android thật.
 - Python 3.11.0 · Node v26.3.0 · JDK 26.0.2.1
 - **Android SDK ✅** — `%LOCALAPPDATA%\Android\Sdk` · platform **android-37.0** · build-tools 36.0.0 · adb 1.0.41 · Android Studio 2026.1.3. `ANDROID_HOME` chưa set (Gradle vẫn tự tìm được). `cmdline-tools` chưa có — cần nếu muốn dùng `sdkmanager` từ dòng lệnh.
-- Chưa phải git repo.
+- **Git:** https://github.com/TrongND2/Manga-translator-app, nhánh `main`. **Không đẩy:** `Support test file/` (bản quyền), `spike/models/`, `spike/out/`, `handoff/*.md` — chỉ `handoff/README.md` là public.
 
 ### 5.4 Bẫy đã mắc khi dựng build — đừng lặp lại
 
