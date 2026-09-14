@@ -1048,6 +1048,55 @@ Và: tên `displayMetrics` gợi ý nó là số đo của màn hình. Nó là s
 
 ---
 
+## F31 — Lớp phủ bị cộng offset HAI LẦN, và tôi đã đoán sai ba vòng trước khi chịu đi đo
+
+**Triệu chứng:** bản dịch vẽ đúng bóng thoại, nhưng **đỉnh mỗi bóng vẫn còn chữ Nhật** và ô nền tràn xuống dưới bóng. Nhìn thì y hệt "ô nền quá nhỏ".
+
+### Ba vòng đoán, cả ba đều sai
+
+| Giả thuyết | Kết quả |
+|---|---|
+| Detector bắt thiếu bóng | ❌ Đo: `gate: 26 vùng` — detector tìm **đủ 12/12**, bằng đúng Epic 2 trên ảnh gốc |
+| Thiếu vỏ bóng nên chỉ tô được hộp chữ | ❌ Đo: **11/12 có vỏ bóng** |
+| Ellipse nội tiếp hở rìa → đổi sang chữ nhật bo góc | ❌ Ảnh **không đổi gì** |
+
+Mỗi vòng đều "hợp lý" và đều sai. Vòng thứ ba còn tệ hơn: tôi tự tay viết một lỗi mới (`padded()` lấy *giao* với vỏ bóng, mà cổng AD-5 cho phép hộp chữ thò ra 10% — phép giao cắt đúng phần thò ra, làm ô nền **nhỏ hơn cả hộp chữ**).
+
+### Đo thì ra ngay
+
+Ghi hình học từng vùng — toạ độ và kích thước, **không** ghi nội dung:
+
+```
+#4 Accepted box=236,499 90x131  shell=217,484 121x178
+```
+
+Vỏ bóng #4 có tâm y = 484 + 178/2 = **573** trong toạ độ ảnh chụp. Trên màn hình, chữ Việt của chính nó hiện ra ở tâm y ≈ **726**.
+
+```
+lệch = 726 − 573 = 153 px
+status bar ≈ 76 px
+153 ≈ 2 × 76
+```
+
+**Đúng gấp đôi.** Ảnh chụp bị cắt `statusBarPx` ở trên (AD-11) nên khi vẽ phải cộng lại chừng ấy — nhưng **cửa sổ lớp phủ đã bắt đầu sẵn ở ngay dưới status bar**, nên phép cộng đó là lần thứ hai.
+
+### Lời giải: tự đo, đừng giả định
+
+```kotlin
+getLocationOnScreen(loc)
+canvas.translate(0f, (offsetY - loc[1]).toFloat())
+```
+
+Công thức này đúng ở **cả hai** trường hợp: cửa sổ bắt đầu ở y=0 thì `loc[1]=0` và offset giữ nguyên; cửa sổ bắt đầu dưới status bar thì `loc[1]=statusBarPx` và offset thành 0. Không phải đoán cửa sổ nằm ở đâu, cũng không phải viết ngoại lệ cho từng hãng máy.
+
+### Quy tắc rút ra
+
+**F26 nói "phải nhìn ảnh". Chưa đủ — nhìn ảnh rồi vẫn suy diễn sai nguyên nhân được.** Tôi đã nhìn ảnh cả ba vòng, và cả ba lần đều đọc ra sai nguyên nhân từ cùng một tấm ảnh, vì "ô nền không phủ hết" và "ô nền bị đẩy lệch" trông **giống hệt nhau**.
+
+Thứ cắt đứt được vòng lặp là **một con số**: 153 so với 76. Nhìn để biết *có lỗi*; đo để biết *lỗi ở đâu*. Nối tiếp F30 — cả hai lần, lỗi hình học đều cải trang thành lỗi nội dung.
+
+---
+
 ## Còn nợ
 
 | # | Việc | Chặn gì | Trạng thái |

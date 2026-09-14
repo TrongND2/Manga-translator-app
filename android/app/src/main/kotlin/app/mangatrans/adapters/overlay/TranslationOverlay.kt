@@ -47,11 +47,33 @@ class TranslationOverlay(
 
     private val bubbles = LinkedHashMap<Int, Bubble>()
 
+    private val loc = IntArray(2)
+
     private val view = object : View(ctx) {
+        /**
+         * ⚠️ Offset phai TU DO, khong duoc gia dinh.
+         *
+         * Anh chup da bi cat `statusBarPx` o tren (AD-11), nen toa do bubble
+         * phai cong lai chung ay de ve dung cho tren man hinh. NHUNG cua so lop
+         * phu co the DA bat dau ngay duoi status bar — luc do cong them lan nua
+         * la cong HAI LAN.
+         *
+         * Da xay ra that. Do duoc tren may: bubble #4 co tam vo bong o y=573
+         * (toa do anh chup), nhung chu Viet cua no hien ra o tam y≈726 tren man
+         * hinh — lech 153 px, trong khi status bar chi ~76 px. Dung gap doi.
+         *
+         * Hau qua nhin thay: ca lop phu tut xuong mot nhip, nen **dinh moi bong
+         * thoai con chu Nhat lo ra** va o nen tran xuong duoi bong. Trong y het
+         * "dich thieu".
+         *
+         * `getLocationOnScreen` tra ve vi tri THAT cua cua so, nen cong thuc
+         * duoi tu dung o ca hai truong hop.
+         */
         override fun onDraw(canvas: Canvas) {
             val src = source ?: return
+            getLocationOnScreen(loc)
             canvas.save()
-            canvas.translate(0f, offsetY.toFloat())
+            canvas.translate(0f, (offsetY - loc[1]).toFloat())
             BubbleRenderer.drawPage(canvas, bubbles.values.toList(), typeface) {
                 BubbleRenderer.sampleBackground(src, it)
             }

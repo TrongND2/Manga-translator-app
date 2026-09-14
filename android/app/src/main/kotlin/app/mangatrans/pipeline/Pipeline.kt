@@ -72,6 +72,18 @@ class Pipeline(
             "Pipeline",
             "gate: ${job.bubbles.size} vung, ${job.bubbles.count { it.shell != null }} co vo bong",
         )
+        // Hinh hoc tung vung, de doi chieu voi anh. Toa do va kich thuoc KHONG
+        // phai noi dung man hinh — ghi duoc. Chu da OCR thi khong.
+        job.bubbles.filter { it.kind == app.mangatrans.domain.RegionKind.TextBubble }
+            .forEach { b ->
+                val s = b.shell
+                android.util.Log.i(
+                    "Geom",
+                    "#${b.id} ${b.state} box=${b.box.x1},${b.box.y1} ${b.box.width}x${b.box.height}" +
+                        if (s == null) " shell=none"
+                        else " shell=${s.x1},${s.y1} ${s.width}x${s.height}",
+                )
+            }
         val boxes = job.bubbles.map { it.box }
         job = job.copy(contentKey = PageHash.contentKey(bitmap, boxes))
 

@@ -119,6 +119,7 @@ class CaptureService : Service() {
         projection = p
 
         val size = realScreenSize()
+        android.util.Log.i(TAG, "man hinh ${size.width()}x${size.height()}, status bar ${statusBarHeight()}px")
         source = MediaProjectionSource(
             projection = p,
             overlays = overlays!!,
