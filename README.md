@@ -6,13 +6,19 @@ Mở trang truyện → chạm icon nổi → bản dịch hiện đè lên, nga
 
 Không server, không tài khoản. Sau khi tải gói mô hình một lần, **tắt mạng vẫn dịch được**. Ảnh màn hình và bản dịch không rời khỏi máy.
 
-**[⬇ Tải APK](../../releases/latest)** · Android 10+ · ~4 GB trống · nên có 6 GB RAM
-
 ---
+
+## Máy cần gì
+
+| | |
+|---|---|
+| Android | 10 trở lên |
+| Dung lượng trống | ~4 GB (gói mô hình 2,7 GB, tải một lần) |
+| RAM | nên có 6 GB trở lên |
 
 ## Cách dùng
 
-1. Cài APK, mở app → **Bật icon dịch màn hình**
+1. [Tải APK](../../releases/latest), cài vào máy, mở app → **Bật icon dịch màn hình**
 2. Mở app đọc truyện, **chạm icon** → cho phép chụp màn hình
 3. **Chạm icon lần nữa** → dịch
 
