@@ -27,7 +27,6 @@ class OverlayController(
     private val wm = ctx.getSystemService(Context.WINDOW_SERVICE) as WindowManager
 
     val icon = FloatingIcon(ctx, wm, onTap = onTap, onGuide = onGuide, onClose = onClose)
-    val translation = TranslationOverlay(ctx, wm)
 
     /**
      * ⚠️ App TU lam man hinh doi trong hai truong hop: dang liec nguyen ban
@@ -42,17 +41,16 @@ class OverlayController(
      */
     val selfChanging = java.util.concurrent.atomic.AtomicBoolean(false)
 
-    /** Story 3.6 — cac cua so nho nhan cham giu tren tung bubble. */
-    private val peek = PeekTargets(ctx, wm) { peeking ->
-        selfChanging.set(peeking)
-        translation.setPeeking(peeking)
-    }
+    /**
+     * Lop phu TU nhan cu chi cham giu (Story 3.6) — cac cua so ve cua no cung
+     * chinh la cac cua so nhan cham. Xem ghi chu dau `TranslationOverlay`.
+     */
+    val translation = TranslationOverlay(ctx, wm) { peeking -> selfChanging.set(peeking) }
 
     fun show() = icon.show()
 
     /** Story 3.5 — go sach, khong con dau vet nao (AD-10). */
     fun destroy() {
-        peek.clear()
         translation.clear()
         icon.hide()
     }
@@ -73,7 +71,6 @@ class OverlayController(
         withContext(Dispatchers.Main) {
             icon.setVisibleForCapture(false)
             translation.setVisibleForCapture(false)
-            peek.setVisibleForCapture(false)
         }
         try {
             return block()
@@ -81,7 +78,6 @@ class OverlayController(
             withContext(Dispatchers.Main) {
                 icon.setVisibleForCapture(true)
                 translation.setVisibleForCapture(true)
-                peek.setVisibleForCapture(true)
             }
             selfChanging.set(false)
         }
@@ -91,7 +87,6 @@ class OverlayController(
 
     suspend fun beginPage(source: Bitmap, frameHash: String, statusBarPx: Int, tf: Typeface) =
         withContext(Dispatchers.Main) {
-            peek.clear()
             translation.begin(source, frameHash, statusBarPx, tf)
         }
 
@@ -100,19 +95,6 @@ class OverlayController(
     suspend fun retract(ids: Collection<Int>) =
         withContext(Dispatchers.Main) { translation.retract(ids) }
 
-    suspend fun clearPage() = withContext(Dispatchers.Main) {
-        peek.clear()
-        translation.clear()
-    }
+    suspend fun clearPage() = withContext(Dispatchers.Main) { translation.clear() }
 
-    /**
-     * Story 3.6 — dat vung cham giu SAU khi ve xong ca trang.
-     *
-     * Khong dat theo tung bubble luc no chay ve: moi lan them mot cua so la mot
-     * lan he thong tinh lai layout, va trong luc dang dich thi nguoi dung chua
-     * co gi de liec.
-     */
-    suspend fun armPeek() = withContext(Dispatchers.Main) {
-        peek.setTargets(translation.drawnBoxesOnScreen())
-    }
 }

@@ -1341,6 +1341,148 @@ Và có sẵn một lời giải thích *đúng về mặt sự thật nhưng sa
 
 ---
 
+## F37 — App bị Android giết giữa lúc dịch, và chỗ chết không phải chỗ tôi đoán
+
+Người dùng báo: *"nó chạy một lúc rồi icon dịch biến mất hoặc hiện chấm than nền đỏ"*.
+
+Không đoán, đi lấy dòng log:
+
+```
+lmkd: Reclaim 'app.mangatrans' (26063), uid 11439, oom_score_adj 200, state 4
+      to free 2797960kB rss, 1006528kB swap;
+      reason: min2x watermark is breached even after kill
+ActivityManager: Process app.mangatrans (pid 26063) has died: prcp FGS
+```
+
+Mốc thời gian nói điều bất ngờ: app chết **1,2 giây sau khi bước đọc chữ bắt đầu**, chứ không phải giữa bước dịch. Lặp lại y hệt ở lần chạy sau (pid 8040).
+
+Lý do: `AD-20` bảo hâm nóng LLM sớm cho cái chạm đầu tiên đỡ phải chờ. Hâm nóng xong thì **2 GB nằm nguyên trong RAM** từ lúc bật icon. Đến khi người dùng chạm, ONNX dựng phiên đọc chữ chồng thêm lên — và đó là đỉnh.
+
+### Ba phép cắt, đo trước–sau từng cái
+
+| Cắt gì | Trước | Sau |
+|---|---|---|
+| Nhả detector + OCR trước khi LLM chạy | 3.474 MB PSS | 2.326 MB PSS (−1.149 MB) |
+| Tắt vùng nhớ đệm của ONNX Runtime | 1.432 MB RSS lúc đọc chữ | 938 MB RSS (−494 MB) |
+| Không hâm nóng LLM sớm nữa | 2.9xx MB RSS lúc bật icon | **74 MB PSS / 130 MB RSS** |
+
+Phép cắt thứ hai đáng nói riêng: ba mô hình thị giác cộng lại chỉ **213 MB trên đĩa** nhưng bước đọc chữ ngốn **858 MB RSS**. Khoảng 645 MB chênh lệch là arena allocator của ONNX Runtime — xin được bao nhiêu thì giữ nguyên, không trả lại hệ điều hành. Tắt bằng `setCPUArenaAllocator(false)` + `setMemoryPatternOptimization(false)`. Đọc chữ còn **nhanh hơn** một chút (10,5s so với 12,5s), không chậm đi.
+
+### Điều làm đổi cả quyết định kiến trúc
+
+Đo được, trên đúng máy M52:
+
+```
+engine san sang sau 13435 ms      <- nạp LLM
+token dau tien sau 27661 ms       <- prefill
+bubble dau tien sau 37434 ms
+```
+
+Hâm nóng sớm **không** mua được cái nó hứa. Chạm đầu tiên vẫn chờ ~62 giây cả khi đã hâm nóng, vì phần lâu là **prefill** (LLM đọc hết trang trước khi sinh chữ đầu), không phải nạp mô hình. Tệ hơn: LLM hâm nóng rồi ngồi chờ thì bị đẩy vào zram, đến lúc dùng phải kéo ngược về — **đắt hơn nạp mới**.
+
+Số toàn lượt, cùng một trang, cùng một máy:
+
+| | có hâm nóng sớm | không hâm nóng sớm |
+|---|---|---|
+| chạm → xong 12 bóng | 2 phút 26 | **2 phút 11** |
+| RAM lúc bật icon | ~2.900 MB | 74 MB |
+
+Nên AD-20 bị thu hẹp lại: **không bao giờ giữ cả mô hình nhìn lẫn mô hình dịch cùng lúc**. Nhìn thì nhả dịch, dịch thì nhả nhìn. Cài bằng `Pipeline.onVisionStart` / `onVisionDone`.
+
+### Quy tắc rút ra
+
+**"Tối ưu cho nhanh" phải được đo bằng đồng hồ, không bằng lý lẽ.** AD-20 nghe rất hợp lý suốt bốn epic và chưa ai bấm giờ nó. Khi bấm thì nó vừa không nhanh hơn, vừa là nguyên nhân chính làm app bị giết.
+
+---
+
+## F38 — Mọi lời báo lỗi của app đều bị hệ thống nuốt, suốt bốn epic
+
+Lần theo F37, thấy dòng này trong log:
+
+```
+NotificationService: Suppressing toast from package app.mangatrans by user request
+```
+
+Kiểm tra quyền:
+
+```
+android.permission.POST_NOTIFICATIONS: granted=false
+```
+
+App khai quyền này trong manifest nhưng **chưa bao giờ xin lúc chạy**. Từ Android 13 đó là quyền phải xin. Chưa xin thì hỏng hai thứ cùng lúc, và cả hai đều hỏng im lặng:
+
+1. thông báo thường trực của service không hiện — mất đường tắt nhanh, mất dấu hiệu "app đang có thể chụp màn hình" (FR-012);
+2. **mọi `Toast` đều bị chặn** — tức mọi câu báo lỗi app định nói đều biến mất.
+
+Đây chính là nửa sau của gợi ý #11: icon hiện chấm than đỏ mà **không nói gì cả**. Không phải app im lặng, mà là app nói vào chỗ đã bị bịt.
+
+Đã sửa: xin quyền thông báo ngay khi người dùng bấm Bật, nối tiếp trước quyền chụp màn hình — một chuỗi, không chồng hộp thoại.
+
+Và thêm log mã lỗi ở `CaptureService.say()`: Toast có thể bị tắt, log thì không. Chỉ ghi **mã lỗi**, không bao giờ ghi nội dung màn hình.
+
+### Quy tắc rút ra
+
+**Một kênh báo lỗi mà người dùng tắt được thì không phải kênh báo lỗi.** Phải luôn có một bản sao ở nơi không ai tắt được.
+
+---
+
+## F39 — Chữ Nhật mờ dưới bản dịch: Android chặn trần độ đục của lớp phủ ở 0.8
+
+Người dùng: *"sao tôi vẫn thấy chữ nhật mờ mờ nằm dưới bản dịch nhỉ?"*
+
+Đây là vòng dài nhất, và tôi **sai hai lần trước khi đúng**.
+
+**Đoán sai lần 1** — "ảnh chụp có alpha 212, màu lấy mẫu mang alpha đó sang nước sơn". Nghe rất khớp: đo được nét chữ 27,5 → 198,6 trên nền 240,6, tỉ lệ 0,83. Ép `alpha = 255`, chạy lại: **vẫn 0,83**. Giả thuyết chết.
+
+**Đoán sai lần 2** — "hình học lệch, ô nền không phủ hết". Vẽ khung detector đè lên ảnh thì thấy khung ôm đúng bóng. Và histogram cho một đỉnh duy nhất ở 210 (89% số pixel), tức **mờ đều**, không phải chỗ che chỗ hở. Giả thuyết chết.
+
+**Phép thử dứt điểm:** tô nền màu **đỏ nguyên chất** rồi đọc pixel trên ảnh chụp.
+
+```
+có FLAG_NOT_TOUCHABLE : nền (255, 51, 51)   chữ (51, 51, 51)
+bỏ FLAG_NOT_TOUCHABLE : nền (255,  0,  0)   chữ ( 0,  0,  0)
+```
+
+51 = đúng 20% của 255. Android chặn trần độ đục của cửa sổ phủ **cho chạm đi xuyên qua** — chống tapjacking, trần mặc định 0.8. Không có lỗi nào trong code vẽ cả; màu gì vẽ ra cũng chỉ còn 80%, 20% còn lại là nội dung bên dưới lọt lên.
+
+Bằng chứng đối chứng có sẵn ngay trong app: **icon nổi không dính lỗi này** vì nó nhận chạm — đo được `(0, 105, 92)` đúng y màu đặt trong code.
+
+### Sửa
+
+Không thể bỏ `FLAG_NOT_TOUCHABLE` trên cửa sổ phủ toàn màn — chính nó cho người dùng cuộn truyện xuyên qua (Story 3.7).
+
+Nên: **mỗi bóng thoại một cửa sổ riêng, khít vùng vẽ, và nhận chạm.** Ngoài bóng thoại không có cửa sổ nào nên app bên dưới cuộn bình thường. Bên trong bóng thoại thì chạm rơi vào ta — mà đó đúng là điều Story 3.6 cần (chạm giữ để liếc nguyên bản). `PeekTargets` vốn đã tạo đúng những cửa sổ đó cho cử chỉ liếc; giờ gộp làm một, bớt hẳn một chỗ tính lại toạ độ (F31 đã dạy chi phí của việc tính hai lần).
+
+**Mỗi cửa sổ vẽ CẢ TRANG rồi để hệ thống xén theo khung của nó**, chứ không vẽ riêng bóng của mình. Nhờ vậy luật hai lượt của `BubbleRenderer` (tô hết nền rồi mới vẽ hết chữ) vẫn giữ nguyên ý nghĩa: hai bóng chồng nhau thì mọi cửa sổ đều cho ra cùng một kết quả, không phụ thuộc cửa sổ nào nằm trên.
+
+Bẫy kèm theo: thiếu `FLAG_LAYOUT_IN_SCREEN` thì `x/y` tính theo vùng nội dung (đã trừ status bar), cửa sổ tụt xuống đúng bằng chiều cao status bar và **xén mất đỉnh bóng thoại** — chữ Nhật ở đỉnh hiện nguyên vẹn.
+
+Kết quả đo sau khi sửa, cùng một bóng, cùng một trang:
+
+| | trước | sau |
+|---|---|---|
+| màu nền tô ra | (255, 51, 51) | (255, 0, 0) |
+| nét chữ Nhật gốc | dồn một đỉnh ở 210 (mờ đều) | hai cực: 255 (che kín) hoặc là chữ Việt |
+| chạm giữ để liếc | có | có — vùng liếc trùng khít 100% ảnh gốc |
+
+### Quy tắc rút ra
+
+**Khi hai giả thuyết hợp lý đều chết, đừng đẻ giả thuyết thứ ba — hãy dựng một phép thử phân biệt được.** Tô màu đỏ nguyên chất mất 2 phút và trả lời dứt điểm câu mà hai vòng suy luận không trả lời nổi.
+
+**Và: tìm sẵn một đối chứng trong chính hệ thống của mình.** Icon nổi dùng cùng loại cửa sổ, cùng đường vẽ, chỉ khác mỗi cờ nhận chạm — nó là thí nghiệm đối chứng có sẵn mà tôi bỏ qua suốt hai vòng.
+
+---
+
+## F40 — Một byte NUL lọt vào mã nguồn Kotlin, git coi cả file là nhị phân
+
+`MangaOcrOnnx.kt` chứa **một ký tự NUL thật** trong `var prev = '<NUL>'`, lẽ ra phải là `'\u0000'`. Đúng vết của cái bẫy heredoc đã ghi ở CLAUDE.md §5.4.
+
+Hỏng im lặng theo đúng nghĩa: Kotlin vẫn biên dịch, app vẫn chạy, `grep` vẫn khớp. Chỉ có một dấu hiệu duy nhất — `git diff` báo `Bin 7122 -> 7982 bytes` thay vì hiện diff. Tức **file mã nguồn này không review được**, suốt nhiều commit.
+
+Quy tắc rút ra: `git diff --stat` mà hiện `Bin` cho một file mã nguồn là **báo động**, không phải chuyện nhỏ.
+
+---
+
 ## Còn nợ
 
 | # | Việc | Chặn gì | Trạng thái |

@@ -39,6 +39,37 @@ class Pipeline(
     private val cfg: PipelineConfig = PipelineConfig(),
     /** Vung status bar can cat truoc khi tinh frameHash (AD-11, AD-18). */
     private val statusBarPx: Int = 0,
+    /**
+     * Goi SAU khi OCR xong, TRUOC khi LLM chay.
+     *
+     * Detector va OCR da lam xong viec o thoi diem nay, nhung van giu bo nho.
+     * Ma dung luc LLM chay moi la luc cang nhat: da do duoc PSS 3 570 MB trong
+     * khi may chi con 3 633 MB kha dung, va Android DA giet app that giua mot
+     * luot dich (F37).
+     *
+     * `pipeline` khong biet ai dang nghe — no chi bao "xong phan nhin roi".
+     * Goc lap rap quyet dinh lam gi voi tin do.
+     */
+    private val onVisionDone: suspend () -> Unit = {},
+    /**
+     * Goi TRUOC khi detect, tuc truoc khi bat ky mo hinh thi giac nao chay.
+     *
+     * Doi xung voi `onVisionDone`, va ly do ton tai cung nam o mot phep do:
+     * LLM ham nong xong chiem ~2 GB RSS va **nam nguyen do trong suot buoc doc
+     * chu**. Cong them phan thi giac la vuot nguong, va Android giet app ngay
+     * giua buoc doc chu — hai lan lien, cung mot cho:
+     *
+     * ```
+     * lmkd: Reclaim 'app.mangatrans' ... to free 2912480kB rss;
+     *       min2x watermark is breached even after kill
+     * ActivityManager: Process app.mangatrans (pid 8040) has died: prcp FGS
+     * ```
+     *
+     * Nen luat o day la: **khong bao gio giu ca hai cung luc**. Nhin thi nha
+     * dich, dich thi nha nhin. Gia phai tra la 14,6 giay nap lai LLM moi trang
+     * (do duoc tren M52) — dat, nhung re hon la bi giet.
+     */
+    private val onVisionStart: suspend () -> Unit = {},
 ) {
 
     companion object {
@@ -49,6 +80,9 @@ class Pipeline(
     fun run(bitmap: Bitmap): Flow<PageEvent> = flow {
         val t0 = System.currentTimeMillis()
         val image = PageImage(bitmap.width, bitmap.height, bitmap)
+
+        // Nha LLM truoc khi phan nhin bat dau — xem `onVisionStart`.
+        runCatching { onVisionStart() }
 
         // --- buoc 1: detect ---
         emit(PageEvent.Progress(Stage.Detecting))
@@ -108,6 +142,9 @@ class Pipeline(
             emit(PageEvent.Done(job, System.currentTimeMillis() - t0))
             return@flow
         }
+
+        // Nha detector + OCR truoc khi buoc nang nhat bat dau.
+        runCatching { onVisionDone() }
 
         // --- buoc 4: dich (AD-3, AD-6, AD-17) ---
         val translateFilter = TranslateFilter(

@@ -100,8 +100,19 @@
             android:exported="false"
             android:taskAffinity=""
             android:excludeFromRecents="true"
-            android:noHistory="true"
             android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
+        <!--
+          ⚠️ KHONG dat `noHistory="true"` cho Activity tren.
+
+          `noHistory` ket thuc Activity ngay khi no roi khoi tien canh — ma hop
+          thoai xin quyen cua he thong CHINH LA mot Activity khac day len. Nen
+          Activity cua ta bi huy trong luc dang cho ket qua, va callback cua
+          `registerForActivityResult` khong bao gio chay: nguoi dung bam "Start
+          now" xong ma app khong nhan duoc gi, service khong khoi dong.
+
+          Da tu gay ra loi nay mot lan khi them `taskAffinity`.
+        -->
 
         <!-- Epic 4 — cai dat lan dau: giai thich quyen, tai goi mo hinh, xoa goi. -->
         <activity

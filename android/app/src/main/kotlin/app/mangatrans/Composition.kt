@@ -139,6 +139,18 @@ object Composition {
             glossary = JsonGlossaryStore(glossaryFile(ctx)),
             cache = FileCache(File(ctx.cacheDir, "pages")),
             cfg = cfg,
+            // Nha ONNX truoc khi LLM chay. Lan sau chung tu nap lai — mat vai
+            // giay, doi lai la khong bi Android giet giua chung (F37).
+            onVisionDone = {
+                withContext(Dispatchers.IO) {
+                    runCatching { det.close() }
+                    runCatching { ocr.close() }
+                }
+            },
+            // AD-24 dung nghia den: LLM chi song trong luc dich, khong song
+            // trong luc nhin. `translate()` tu goi `warmUp()` khi can nen khong
+            // ai phai nho bat lai.
+            onVisionStart = { runCatching { translator.release() } },
         )
 
         val typeface = Typeface.SANS_SERIF

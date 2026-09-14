@@ -40,7 +40,20 @@ class ProjectionRequestActivity : ComponentActivity() {
         fun intent(ctx: Context, alsoStartService: Boolean) =
             Intent(ctx, ProjectionRequestActivity::class.java)
                 .putExtra(EXTRA_START_SERVICE, alsoStartService)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                // NEW_TASK + CLEAR_TASK, khong phai chi NEW_TASK.
+                //
+                // `taskAffinity=""` cho Activity nay mot task rieng — nhung task
+                // do TON TAI GIUA CAC LAN GOI. Neu lan truoc bo do giua chung
+                // (vi du hop thoai he thong con ket lai trong do), thi lan sau
+                // `startActivity` nhap vao dung cai task hong ay va **khong co
+                // gi xay ra ca**: khong log, khong loi, khong man hinh.
+                //
+                // Da mat mot vong do de tim: `ActivityRecord{... MediaProjection
+                // PermissionActivity} t9448` van nam do tu lan chay truoc.
+                //
+                // CLEAR_TASK don sach task truoc khi bat dau, nen moi lan xin
+                // quyen la mot lan sach.
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
     }
 
     private var startService = false

@@ -182,10 +182,42 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Tu Android 13 thong bao la quyen PHAI XIN. Chua xin thi hai thu hong cung
+     * luc, va ca hai deu hong **im lang**:
+     *
+     *   1. thong bao thuong truc cua service khong hien — nguoi dung mat duong
+     *      tat nhanh, va mat dau hieu "app dang co the chup man hinh" (FR-012);
+     *   2. **moi Toast deu bi nuot**. Log he thong ghi "Suppressing toast from
+     *      package app.mangatrans by user request". Nghia la moi cau bao loi ma
+     *      app dinh noi — het quyen chup, app chan chup, khong thay bong thoai —
+     *      deu bien mat khong dau vet.
+     *
+     * Do that tren M52: `POST_NOTIFICATIONS: granted=false`. Dung cai canh nguoi
+     * dung ke o gop y #11: icon hien cham than do ma khong noi gi ca.
+     *
+     * Xin o day chu khong xin luc mo app: day la luc dau tien app that su can
+     * thong bao, nen hop thoai co ngu canh. Tu choi cung khong chan gi — chi mat
+     * loi bao, nen khong ep, khong hoi lai.
+     */
+    private val askNotif = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+    ) { OverlayLauncher.start(this) }
+
+    private fun needsNotifPermission(): Boolean =
+        android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU &&
+            checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) !=
+            android.content.pm.PackageManager.PERMISSION_GRANTED
+
     private fun onToggleOverlay() {
         if (CaptureService.isRunning) {
             OverlayLauncher.stop(this)
             say("Đã tắt icon nổi.")
+        } else if (needsNotifPermission()) {
+            // Xin thong bao TRUOC, roi callback moi chay tiep sang quyen chup.
+            // Dung hai hop thoai chong nhau — nguoi dung chi thay tung cai mot.
+            askNotif.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+            return
         } else {
             OverlayLauncher.start(this)
         }

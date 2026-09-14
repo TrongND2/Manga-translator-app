@@ -106,11 +106,25 @@ object BubbleRenderer {
         )
     }
 
+    /**
+     * Khung MA MOT BUBBLE THUC SU VE RA — hop cua vo bong va hop chu da noi.
+     *
+     * Co mot ham cong khai cho viec nay vi tang hien thi can dat cua so dung
+     * khit vung ve. Tinh lai o cho khac la cach chac chan de hai ben troi khoi
+     * nhau (F31 da day mot lan).
+     */
+    fun drawnRect(bubble: Bubble): Box {
+        val p = padded(bubble.box, bubble.shell)
+        val s = bubble.shell ?: return p
+        return Box(minOf(p.x1, s.x1), minOf(p.y1, s.y1), maxOf(p.x2, s.x2), maxOf(p.y2, s.y2))
+    }
+
     private fun fillBackground(canvas: Canvas, bubble: Bubble, sample: (Box) -> Int) {
         val b = bubble.box
         val shell = bubble.shell
+        val c = sample(b)
         val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = sample(b); style = Paint.Style.FILL
+            color = c; style = Paint.Style.FILL
         }
         if (shell != null) {
             // HINH CHU NHAT BO GOC, khong phai ellipse.
@@ -226,8 +240,26 @@ object BubbleRenderer {
     private fun isLight(c: Int): Boolean =
         (0.299 * Color.red(c) + 0.587 * Color.green(c) + 0.114 * Color.blue(c)) > 140
 
-    /** Lay mau nen: mau pho bien nhat trong vien bubble. */
-    fun sampleBackground(bmp: Bitmap, box: Box): Int {
+    /**
+     * Lay mau nen: mau pho bien nhat trong vien bubble.
+     *
+     * ⚠️ **Luon tra ve mau DUC.** Anh chup man hinh khong bao gio dam bao kenh
+     * alpha bang 255 — do tren M52 thi pixel tu `MediaProjection` co alpha ~212.
+     * `getPixel` mang nguyen alpha do sang `Paint`, nen o nen chi to duoc ~83%,
+     * va **chu Nhat goc hien mo mo xuyen qua ca ban dich**.
+     *
+     * Do duoc: net chu Nhat 27.5 (thang do xam) sau khi to thanh 198.6, trong
+     * khi nen cua chinh lop phu la 240.6 — ty le 0.83, dung bang alpha 212/255.
+     *
+     * Day la loi im lang dung nghia: khong log, khong crash, chi nhin ky anh
+     * moi thay. Chinh la gop y #1 cua nguoi dung.
+     */
+    fun sampleBackground(bmp: Bitmap, box: Box): Int = opaque(rawSample(bmp, box))
+
+    /** Ep alpha = 255, giu nguyen ba kenh mau. */
+    private fun opaque(c: Int): Int = c or 0xFF000000.toInt()
+
+    private fun rawSample(bmp: Bitmap, box: Box): Int {
         val counts = HashMap<Int, Int>()
         val stepX = maxOf(1, box.width / 12)
         val stepY = maxOf(1, box.height / 12)

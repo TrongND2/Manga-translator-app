@@ -193,8 +193,18 @@ class CaptureService : Service() {
             .onSuccess { e ->
                 engines = e
                 pipeline = e.pipeline
-                // AD-20 — ham nong truoc, khong de den luc nguoi dung cham icon.
-                runCatching { e.translator.warmUp() }
+                // ⚠️ KHONG ham nong LLM o day nua (AD-20 cu).
+                //
+                // Ham nong som nghe hop ly, nhung do tren M52 thi no mua rat it
+                // ma tra rat dat:
+                //   - mua: cham dau tien van cho 62 giay moi ra bong dau tien,
+                //     ham nong hay khong cung vay — vi phan lau la LLM doc het
+                //     trang truoc khi sinh chu, khong phai nap mo hinh;
+                //   - tra: 2 GB nam trong RAM tu luc bat icon, ke ca khi nguoi
+                //     dung chua dich gi. Cong voi phan doc chu la Android giet
+                //     app — da xay ra hai lan lien, deu ngay dau buoc doc chu.
+                //
+                // Gio LLM chi song trong luc dich (xem `Pipeline.onVisionStart`).
                 setIconState(
                     if (source == null) FloatingIcon.State.NeedPermission
                     else FloatingIcon.State.Ready
@@ -288,14 +298,17 @@ class CaptureService : Service() {
 
                     // Hong ca luot — khac han ket qua tung bubble. Noi ro ly do
                     // bang tieng nguoi (Story 3.8), khong hien ma loi.
-                    is PageEvent.Failed -> when (ev.error.kind) {
-                        ErrorKind.ScreenCaptureBlocked -> say(CaptureFailure.ScreenProtected)
-                        ErrorKind.ScreenCaptureRevoked -> say(CaptureFailure.SessionRevoked)
-                        ErrorKind.ModelNotReady, ErrorKind.ModelLoadFailed ->
-                            toast("Mô hình dịch chưa sẵn sàng")
-                        ErrorKind.OcrFailed -> toast("Không đọc được chữ trên trang này")
-                        ErrorKind.TranslateFailed -> toast("Không dịch được trang này")
-                        ErrorKind.Unknown -> toast("Có lỗi khi dịch trang này")
+                    is PageEvent.Failed -> {
+                        Log.i(TAG, "luot hong: ${ev.error.kind}")
+                        when (ev.error.kind) {
+                            ErrorKind.ScreenCaptureBlocked -> say(CaptureFailure.ScreenProtected)
+                            ErrorKind.ScreenCaptureRevoked -> say(CaptureFailure.SessionRevoked)
+                            ErrorKind.ModelNotReady, ErrorKind.ModelLoadFailed ->
+                                toast("Mô hình dịch chưa sẵn sàng")
+                            ErrorKind.OcrFailed -> toast("Không đọc được chữ trên trang này")
+                            ErrorKind.TranslateFailed -> toast("Không dịch được trang này")
+                            ErrorKind.Unknown -> toast("Có lỗi khi dịch trang này")
+                        }
                     }
                 }
             }
@@ -303,7 +316,7 @@ class CaptureService : Service() {
 
         Log.i(TAG, "xong: ve $drawn bubble")
         if (drawn > 0) {
-            ov.armPeek()              // Story 3.6
+            // Story 3.6 da nam trong chinh cac cua so ve — khong con buoc rieng.
             watchForPageChange(src)   // Story 3.7
         } else {
             ov.clearPage()
@@ -407,18 +420,23 @@ class CaptureService : Service() {
      * FR-013/014 — noi bang ngon ngu nguoi dung hieu, khong phai ma loi.
      * `when` tren `sealed` nen them nhanh loi moi la bi bien dich bat ngay.
      */
-    private fun say(f: CaptureFailure) = toast(
-        when (f) {
-            CaptureFailure.ScreenProtected ->
-                "App đang đọc chặn chụp màn hình (bảo vệ bản quyền). Đây là giới hạn của Android, không có cách vòng."
-            CaptureFailure.SessionRevoked ->
-                "Phiên chụp đã dừng (thường là do khoá màn hình). Chạm icon để cấp lại."
-            CaptureFailure.NoPermission ->
-                "Chưa được cấp quyền chụp màn hình. Chạm icon để cấp."
-            CaptureFailure.Timeout ->
-                "Không lấy được ảnh màn hình. Thử lại một lần nữa."
-        }
-    )
+    private fun say(f: CaptureFailure) {
+        // Chi ghi MA loi. Toast co the bi nguoi dung tat trong Cai dat
+        // ("Suppressing toast ... by user request"), luc do khong con dau vet nao.
+        Log.i(TAG, "chup hong: ${f.javaClass.simpleName}")
+        toast(
+            when (f) {
+                CaptureFailure.ScreenProtected ->
+                    "App đang đọc chặn chụp màn hình (bảo vệ bản quyền). Đây là giới hạn của Android, không có cách vòng."
+                CaptureFailure.SessionRevoked ->
+                    "Phiên chụp đã dừng (thường là do khoá màn hình). Chạm icon để cấp lại."
+                CaptureFailure.NoPermission ->
+                    "Chưa được cấp quyền chụp màn hình. Chạm icon để cấp."
+                CaptureFailure.Timeout ->
+                    "Không lấy được ảnh màn hình. Thử lại một lần nữa."
+            }
+        )
+    }
 
     private fun toast(msg: String) = scope.launch(Dispatchers.Main) {
         Toast.makeText(this@CaptureService, msg, Toast.LENGTH_LONG).show()

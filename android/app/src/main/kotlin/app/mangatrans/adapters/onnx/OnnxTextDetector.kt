@@ -27,15 +27,28 @@ import java.nio.LongBuffer
  *   resize 640x640 · rescale 1/255 · do_normalize = FALSE (khong tru mean/std)
  */
 class OnnxTextDetector(
-    modelPath: String,
+    private val modelPath: String,
     private val inputSize: Int = 640,
 ) : TextDetector, AutoCloseable {
 
     private val env: OrtEnvironment = OrtEnvironment.getEnvironment()
-    // Nap tu DUONG DAN, khong qua `readBytes()`: heap Java cua app bi gioi han
-    // ~256 MB, doc 171 MB vao mang byte lam OOM ngay (da gap that tren M52).
-    // ONNX Runtime tu mmap file, khong ton heap.
-    private val session: OrtSession = env.createSession(modelPath, OrtSession.SessionOptions())
+
+    /**
+     * Session nap LUOI va **nap lai duoc**.
+     *
+     * Truoc day no la `val` tao trong ham khoi tao: dong mot lan la hong han,
+     * nen khong the nha ra roi lay lai. Ma nha ra dung luc la dieu can lam —
+     * detector xong viec truoc khi LLM chay, va LLM la thu suyt lam app bi
+     * Android giet (F37).
+     *
+     * Nap tu DUONG DAN, khong qua `readBytes()`: heap Java cua app bi gioi han
+     * ~256 MB, doc 171 MB vao mang byte lam OOM ngay (da gap that tren M52).
+     * ONNX Runtime tu mmap file, khong ton heap.
+     */
+    private var session: OrtSession? = null
+
+    private fun session(): OrtSession =
+        session ?: env.createSession(modelPath, OnnxOptions.lean()).also { session = it }
 
     private companion object {
         // id2label tu config.json cua model.
@@ -71,7 +84,7 @@ class OnnxTextDetector(
 
             OnnxTensor.createTensor(env, buf, longArrayOf(1, 3, inputSize.toLong(), inputSize.toLong())).use { imgT ->
                 OnnxTensor.createTensor(env, sizes, longArrayOf(1, 2)).use { sizeT ->
-                    session.run(mapOf("images" to imgT, "orig_target_sizes" to sizeT)).use { res ->
+                    session().run(mapOf("images" to imgT, "orig_target_sizes" to sizeT)).use { res ->
                         @Suppress("UNCHECKED_CAST")
                         val labels = (res[0].value as Array<LongArray>)[0]
                         @Suppress("UNCHECKED_CAST")
@@ -100,7 +113,8 @@ class OnnxTextDetector(
         }
 
     override fun close() {
-        runCatching { session.close() }
+        runCatching { session?.close() }
+        session = null
     }
 }
 
