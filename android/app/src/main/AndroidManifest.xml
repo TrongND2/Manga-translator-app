@@ -11,6 +11,11 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
 
+    <!-- Moi LOAI foreground service doi mot quyen RIENG. Khai bao loai trong
+         <service> thoi la chua du — thieu quyen la SecurityException luc chay,
+         khong phai loi luc build. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+
     <!-- Thong bao thuong truc cua foreground service (Android 13+ moi can xin). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
@@ -46,11 +51,31 @@
             android:name=".ui.GlossaryActivity"
             android:label="Từ điển riêng"
             android:exported="false" />
-        <!-- Story 3.2 — AD-21: CHU SO HUU DUY NHAT cua MediaProjection. -->
+        <!--
+          Story 3.2 — AD-21: CHU SO HUU DUY NHAT cua MediaProjection.
+
+          HAI loai, khong phai mot. Tu Android 14, khoi dong foreground service
+          loai `mediaProjection` khi CHUA co quyen chup se nem SecurityException:
+
+            Starting FGS with type mediaProjection targetSDK=36 requires
+            all of [FOREGROUND_SERVICE_MEDIA_PROJECTION]
+            and any of [CAPTURE_VIDEO_OUTPUT, android:project_media]
+
+          Ma thiet ke cua ta la icon noi hien TRUOC, xin quyen SAU (nguoi dung
+          cham icon moi hoi). Nen service phai bat dau o loai `specialUse` —
+          luc do no chi giu icon noi — roi NANG CAP sang `mediaProjection` ngay
+          sau khi nguoi dung dong y.
+
+          M52 chay Android 13 nen khong bao gio lo loi nay (AD-22).
+        -->
         <service
             android:name=".service.CaptureService"
             android:exported="false"
-            android:foregroundServiceType="mediaProjection" />
+            android:foregroundServiceType="specialUse|mediaProjection">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Giu icon noi trong luc cho nguoi dung cap quyen chup man hinh" />
+        </service>
 
         <!-- Story 3.2 — man hinh trong suot, chi song du lau de xin quyen chup. -->
         <activity

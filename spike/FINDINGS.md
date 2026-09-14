@@ -1172,6 +1172,79 @@ Hash **giống hệt**. Nếu lớp phủ lọt vào ảnh chụp thì nội dun
 
 ---
 
+## F34 — App SẬP NGAY trên Android 14+, và M52 không bao giờ lộ ra được
+
+Story 3.9 tồn tại để chạy những đường code mà thiết bị đo chuẩn không chạm tới (AD-22). Lần chạy đầu tiên trên máy ảo Android 16 (SDK 36): **app sập trước cả khi hiện được icon**.
+
+```
+SecurityException: Starting FGS with type mediaProjection targetSDK=36
+  requires all of  [FOREGROUND_SERVICE_MEDIA_PROJECTION]
+  and     any of   [CAPTURE_VIDEO_OUTPUT, android:project_media]
+```
+
+Manifest **đã** khai `FOREGROUND_SERVICE_MEDIA_PROJECTION`. Vế thiếu là `android:project_media` — đó không phải quyền khai trong manifest mà là **appop được cấp khi người dùng bấm "Start now"**.
+
+Nghĩa là: từ Android 14, **không được khởi động foreground service loại `mediaProjection` trước khi có quyền chụp**. Mà thiết kế của app làm đúng thế — icon nổi phải hiện trước, người dùng chạm icon rồi mới hỏi quyền (Story 3.1 → 3.2).
+
+### Hai loại, không phải một
+
+Service khởi động ở loại `specialUse` (lúc đó nó chỉ giữ icon nổi, chưa chụp gì), rồi **nâng cấp** sang `mediaProjection` ngay sau khi người dùng đồng ý — gọi lại `startForeground` với loại mới.
+
+### Vòng hai: mỗi LOẠI đòi một QUYỀN riêng
+
+Đổi xong, chạy lại vẫn sập:
+
+```
+SecurityException: Starting FGS with type specialUse targetSDK=36
+  requires all of [FOREGROUND_SERVICE_SPECIAL_USE]
+```
+
+Khai loại trong `<service>` là **chưa đủ** — phải khai thêm `<uses-permission>` tương ứng. Và đây là lỗi **lúc chạy**, không phải lỗi lúc build: manifest hợp lệ, APK cài được, chỉ sập khi service khởi động.
+
+### Vì sao M52 không bao giờ bắt được
+
+M52 chạy Android 13. Toàn bộ cơ chế `foregroundServiceType` + quyền theo loại chỉ áp dụng từ Android 14. Đường code này **chưa từng chạy** trong suốt Epic 3, dù Epic 3 đã được kiểm bằng mắt rất nhiều lần trên máy thật.
+
+### Vòng ba: thứ tự là một vòng tròn nếu làm sai
+
+Sửa xong hai cái trên, chạy lại vẫn sập — lần này ở chỗ khác:
+
+```
+SecurityException: Media projections require a foreground service of type
+  ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
+```
+
+`getMediaProjection()` đòi service **đã** ở loại `mediaProjection`; mà khởi động loại đó lại đòi **đã có** quyền chụp. Nhìn qua thì là vòng tròn.
+
+Lối thoát: quyền được cấp ngay khi người dùng bấm đồng ý (appop `android:project_media`), **trước** khi ta gọi `getMediaProjection`. Nên thứ tự đúng là:
+
+```
+có quyền  →  NÂNG loại foreground service  →  rồi mới lấy projection
+```
+
+Code cũ làm ngược hai bước cuối.
+
+### Đo sau khi sửa, trên Android 16
+
+| | máy ảo Android 16 | M52 Android 13 |
+|---|---|---|
+| Màn hình | 1080×2340, status bar **145 px** | 1080×2400, status bar 76 px |
+| Khởi động service | ✅ không ngoại lệ | ✅ |
+| Hộp thoại xin quyền | ✅ có thêm lựa chọn **"Share one app"** của Android 14+ | không có lựa chọn này |
+| Chụp + phát hiện | ✅ 25 vùng, 11 vỏ bóng | 26 vùng, 11 vỏ bóng |
+
+Hai máy khác nhau cả kích thước màn hình lẫn chiều cao status bar, nên đây cũng là phép kiểm thật cho bản sửa offset tự-đo của F31.
+
+⚠️ **Android 14+ cho người dùng chọn "chia sẻ một app" thay vì cả màn hình.** Chọn thế thì nội dung chụp được là app đó chứ không phải màn hình — chưa kiểm đường này.
+
+### Quy tắc rút ra
+
+**AD-22 không phải thủ tục giấy tờ.** Nó tồn tại vì "đã kiểm kỹ trên máy thật" và "chạy được trên mọi phiên bản được hỗ trợ" là **hai mệnh đề khác nhau**, và mệnh đề thứ hai cần phép đo riêng. Nếu bỏ qua Story 3.9, app sẽ sập với 100% người dùng Android 14 trở lên — trong khi mọi phép kiểm khác đều xanh.
+
+Và: **một khai báo trong manifest thường đi kèm một quyền.** Thiếu quyền không làm hỏng build, chỉ làm sập lúc chạy.
+
+---
+
 ## Còn nợ
 
 | # | Việc | Chặn gì | Trạng thái |

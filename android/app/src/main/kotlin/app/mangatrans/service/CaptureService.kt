@@ -87,6 +87,15 @@ class CaptureService : Service() {
     /** Story 3.7 — canh noi dung ben duoi doi de go lop phu. */
     private var watching: Job? = null
 
+    /**
+     * Nguoi dung DA dong y cho chup chua.
+     *
+     * Tach rieng khoi `projection != null` vi thu tu bat buoc tren Android 14+ la:
+     *   co quyen  ->  NANG LOAI foreground service  ->  roi moi lay projection
+     * Luc nang loai thi `projection` con null, nen khong the dung no lam co.
+     */
+    private var hasProjectionConsent = false
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
@@ -122,8 +131,23 @@ class CaptureService : Service() {
 
         releaseProjection()
 
+        // ⚠️ THU TU BAT BUOC tren Android 14+, va no la vong tron neu lam sai:
+        //
+        //   `getMediaProjection()` doi service DA o loai `mediaProjection`
+        //   nhung khoi dong loai do lai doi DA CO quyen chup
+        //
+        // Loi thoat: quyen chup duoc cap ngay khi nguoi dung bam dong y (appop
+        // `android:project_media`), TRUOC khi ta goi `getMediaProjection`. Nen
+        // dung thu tu la:  co quyen -> nang loai -> roi moi lay projection.
+        //
+        // Lam nguoc thi: "Media projections require a foreground service of type
+        // ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION" (F34).
+        hasProjectionConsent = true
+        startForegroundProperly()
+
         val mgr = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
         val p = mgr.getMediaProjection(code, data) ?: run {
+            hasProjectionConsent = false
             say(CaptureFailure.NoPermission)
             return
         }
@@ -145,6 +169,7 @@ class CaptureService : Service() {
     private fun releaseProjection() {
         source?.release(); source = null
         projection = null       // `release()` da goi `stop()`
+        hasProjectionConsent = false
     }
 
     // ---------- nap engine ----------
@@ -418,11 +443,18 @@ class CaptureService : Service() {
             .addAction(Notification.Action.Builder(null, "Tắt", stop).build())
             .build()
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            startForeground(NOTIF_ID, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION)
-        } else {
-            startForeground(NOTIF_ID, n)
+        val type = when {
+            Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE -> null
+
+            // ⚠️ Tu Android 14, loai `mediaProjection` doi quyen chup PHAI CO
+            // SAN. Chua co ma khoi dong la SecurityException => app sap ngay.
+            // Da thay that tren may ao Android 16 (FINDINGS F34).
+            hasProjectionConsent -> ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
+
+            // Chua xin quyen: service luc nay chi giu icon noi, chua chup gi.
+            else -> ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
         }
+        if (type == null) startForeground(NOTIF_ID, n) else startForeground(NOTIF_ID, n, type)
     }
 
     /**
