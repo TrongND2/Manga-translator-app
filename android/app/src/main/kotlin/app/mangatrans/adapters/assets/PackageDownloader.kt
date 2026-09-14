@@ -11,6 +11,7 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
 import java.net.HttpURLConnection
@@ -59,10 +60,27 @@ class PackageDownloader(private val store: ModelStore) {
      * va de phep kiem tu song lai khi repo cong khai.
      */
     suspend fun fetchManifest(url: String = ModelStore.MANIFEST_URL): PackageManifest =
+        // ⚠️ `withContext(IO)` la BAT BUOC. `suspend` KHONG tu doi luong — no
+        // chay tren luong cua nguoi goi, ma `reload()` goi tu `lifecycleScope`
+        // tuc la main thread => `NetworkOnMainThreadException`.
+        //
+        // Va loi nay tung bi CHINH DUONG DU PHONG che mat: no roi vao nhanh
+        // "dung ban dong goi" va trong y het "repo dang private". Mat mot vong
+        // do moi thay, vi log chi in ten lop ngoai le chu khong in nguyen nhan.
+        withContext(Dispatchers.IO) {
         runCatching { fetchRemoteManifest(url) }.getOrElse { remote ->
-            Log.w(TAG, "khong lay duoc manifest tu xa (${remote.javaClass.simpleName}), dung ban dong goi")
+            // Ghi CA nguyen nhan goc. Chi in ten lop ngoai le la khong du de
+            // biet vi sao — da mat mot vong do vi thieu dong nay.
+            Log.w(
+                TAG,
+                "khong lay duoc manifest tu xa: ${remote.javaClass.simpleName}" +
+                    " / ${remote.message}" +
+                    " / cause=${remote.cause?.javaClass?.simpleName}: ${remote.cause?.message}" +
+                    " — dung ban dong goi",
+            )
             runCatching { ModelStore.parseManifest(bundledManifest()) }
                 .getOrElse { throw remote }
+        }
         }
 
     private fun bundledManifest(): String =

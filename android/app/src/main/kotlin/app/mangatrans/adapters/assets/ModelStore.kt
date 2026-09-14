@@ -38,7 +38,7 @@ class ModelStore(ctx: Context, private val appVersion: Int) {
          * goi moi.
          *
          * Host o repo GitHub cua chinh du an — D2 chot chi phi 0 dong, ma repo
-         * thi von da co.
+         * thi von da co. Repo phai CONG KHAI thi URL nay moi doc duoc.
          */
         const val MANIFEST_URL =
             "https://raw.githubusercontent.com/TrongND2/Manga-translator-app/main/package.json"

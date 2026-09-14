@@ -1301,6 +1301,46 @@ Hệ quả kèm theo: **không bao giờ tồn tại một file "xong" mà hỏn
 
 ---
 
+## F36 — Đường dự phòng che mất lỗi thật, và tôi tin vào lời giải thích sai suốt một vòng
+
+Manifest gói mô hình không lấy được từ GitHub. Log của app nói:
+
+```
+W Download: khong lay duoc manifest tu xa (DownloadException), dung ban dong goi
+```
+
+Cùng lúc đó, API GitHub trả 404 cho cả repo lẫn file trong khi file **có** trong `origin/main`. Kết luận rất tự nhiên: **repo đang private**. Tôi viết nguyên một đoạn giải thích chuyện đó vào code và vào commit.
+
+### Repo công khai rồi, vẫn hỏng y nguyên
+
+Dòng log không đổi một chữ. Nên nguyên nhân tôi tin suốt từ đầu là **sai**.
+
+Thêm nguyên nhân gốc vào log:
+
+```
+khong lay duoc manifest tu xa: DownloadException / NoNetwork
+  / cause=NetworkOnMainThreadException: null
+```
+
+`fetchManifest` là `suspend` — nhưng **`suspend` không tự đổi luồng**. Nó chạy trên luồng của người gọi, mà người gọi là `lifecycleScope.launch` tức main thread. Thiếu `withContext(Dispatchers.IO)`.
+
+Code này **chưa bao giờ chạy được**, kể cả khi repo công khai ngay từ đầu.
+
+### Hai thứ cùng nhau tạo ra vòng lặp
+
+1. **Đường dự phòng nuốt lỗi.** Nó bắt mọi ngoại lệ và lặng lẽ chuyển sang bản đóng gói. App vẫn chạy, màn hình vẫn đúng, không có gì đỏ.
+2. **Log chỉ in tên lớp ngoại lệ**, không in nguyên nhân gốc. `DownloadException` không nói gì cả — nó là lớp bọc của chính tôi.
+
+Và có sẵn một lời giải thích *đúng về mặt sự thật nhưng sai về nhân quả*: repo lúc đó **thật sự** đang private. Nó khớp với triệu chứng, nên tôi ngừng đào.
+
+### Quy tắc rút ra
+
+**Một đường dự phòng phải ồn ào về lý do nó được dùng.** Dự phòng im lặng biến lỗi thành hành vi, và hành vi thì không ai đi sửa. Ở đây chỉ cần in thêm `cause` là xong — mà thiếu nó thì mất trọn một vòng.
+
+**Và: một lời giải thích khớp với triệu chứng chưa chắc là nguyên nhân.** Nối tiếp F31 (nhìn ảnh ba vòng, đọc sai nguyên nhân ba lần) và F30 (lỗi hình học cải trang thành lỗi nội dung). Cùng một cái bẫy, lần này khoác áo "đã tìm ra lý do rồi".
+
+---
+
 ## Còn nợ
 
 | # | Việc | Chặn gì | Trạng thái |
