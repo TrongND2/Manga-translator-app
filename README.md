@@ -10,7 +10,9 @@ App Android dịch manga tiếng Nhật sang tiếng Việt **ngay trên máy**,
 
 ## Trạng thái
 
-**Epic 1 xong · Epic 2 gần xong.** Pipeline chạy được đầu-cuối trên máy thật (Samsung Galaxy M52).
+**Cả 4 epic đã xong.** Chạy được đầu-cuối trên máy thật (Samsung Galaxy M52, Android 13) và trên máy ảo Android 16.
+
+Mở trang truyện → chạm icon nổi → bản dịch tiếng Việt hiện đè lên ngay trong bóng thoại. Giữ icon để tắt hoặc mở hướng dẫn. Chạm giữ vào bóng để liếc chữ Nhật gốc. Sang trang thì lớp phủ tự biến mất.
 
 | | Kết quả đo trên Galaxy M52 |
 |---|---|
@@ -20,7 +22,7 @@ App Android dịch manga tiếng Nhật sang tiếng Việt **ngay trên máy**,
 | RAM | ~3.2 GB (mmap, không bị OOM-kill) |
 | Nhiệt | 58–62 °C (2 luồng CPU) |
 | APK | 50.9 MB |
-| Unit test | 36 / 36 xanh |
+| Unit test | 43 / 43 xanh |
 
 ---
 
@@ -72,7 +74,7 @@ Dự án bắt đầu bằng một Project Brief. Sau khi đo thật trên phầ
 | Ngưỡng 40 s/trang | **Bất khả thi** trên phần cứng này |
 | Gói ~3 GB cần 8 GB RAM | Gần đúng |
 
-Toàn bộ 27 phát hiện, mỗi cái kèm phép đo, ở [`spike/FINDINGS.md`](spike/FINDINGS.md).
+Toàn bộ 35 phát hiện, mỗi cái kèm phép đo, ở [`spike/FINDINGS.md`](spike/FINDINGS.md).
 
 ---
 
@@ -90,7 +92,14 @@ Tổng gói tải về ≈ **2.7 GB**. Không model nào bị khoá quyền truy
 
 ## Chạy thử
 
-**Yêu cầu:** Android 10+, ~4 GB dung lượng trống, JDK 25 (đi kèm Android Studio).
+**Yêu cầu:** Android 10+, ~4 GB dung lượng trống.
+
+App tự tải gói mô hình về (2,7 GB) — mở app → **Cài đặt / tải gói mô hình**. Tải được tạm dừng và tiếp tục; rớt mạng thì lần sau tải tiếp chỗ dở. Xong rồi thì tắt mạng vẫn dịch được.
+
+<details>
+<summary>Cách của người phát triển: đẩy mô hình bằng adb</summary>
+
+**Yêu cầu thêm:** JDK 25 (đi kèm Android Studio).
 
 ```powershell
 # 1. Tải mô hình về máy tính
@@ -116,6 +125,8 @@ $env:JAVA_HOME = "$env:ProgramFiles\Android\Android Studio\jbr"
 
 > **Lưu ý về ONNX Runtime:** bản Android **không có** toán tử `ConvInteger`, nên phải dùng encoder `fp16` thay vì `int8`. Lỗi này chỉ lộ ra trên máy thật — trên PC chạy bình thường.
 
+</details>
+
 ---
 
 ## Cấu trúc
@@ -133,9 +144,10 @@ android/
   bench/               app đo hiệu năng trên máy thật
 
 spike/                 script đo trên PC — không phải code app
-  FINDINGS.md          27 phát hiện, mỗi cái kèm phép đo
+  FINDINGS.md          35 phát hiện, mỗi cái kèm phép đo
 docs/brief.md          Project Brief ban đầu
 _bmad-output/          PRD · architecture spine (25 AD) · 4 epic / 32 story
+package.json           manifest gói mô hình — phiên bản, checksum, URL từng file
 ```
 
 ---
@@ -145,7 +157,8 @@ _bmad-output/          PRD · architecture spine (25 AD) · 4 epic / 32 story
 - **Chữ SFX ngoài bóng thoại không được dịch.** Detector gần như không bắt được lớp `text_free` — 1 box trên 6 trang.
 - **GPU không dùng được trên Adreno 642L.** Khởi tạo thành công, nhanh gấp 4, nhưng sinh ra rác. Code vẫn giữ đường GPU cho máy khác, mặc định là CPU.
 - **Bubble đầu tiên mất ~90 giây.** 91% là prefill — model phải đọc hết prompt trước khi sinh token nào. Giới hạn của transformer, không sửa được bằng code. Mọi cách chia nhỏ đã đo và không cứu được.
-- **Chưa có overlay.** Nguồn ảnh hiện là file; chụp màn hình là Epic 3.
+- **Android 14+ cho phép chọn "chia sẻ một app" thay vì cả màn hình.** Chọn thế thì nội dung chụp được là app đó, chưa kiểm đường này.
+- **Máy dưới 6 GB RAM** nhiều khả năng bị Android tắt app giữa chừng — mô hình chiếm ~3,2 GB khi chạy. App cảnh báo trước khi tải chứ không chặn.
 - **Số đo đến từ một bộ truyện**, thuộc loại tiếng Nhật khó (khẩu ngữ cổ trang, tiếng lóng). Không suy ra cho manga nói chung.
 
 ---
