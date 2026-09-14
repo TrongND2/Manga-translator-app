@@ -83,13 +83,26 @@ object BubbleRenderer {
      */
     private const val PAD_RATIO = 0.08
 
+    /** Ban kinh bo goc cua o nen, tinh theo canh ngan cua vo bong. */
+    private const val CORNER_RATIO = 0.30f
+
     private fun padded(b: Box, shell: Box?): Box {
         val px = (b.width * PAD_RATIO).toInt().coerceAtLeast(2)
         val py = (b.height * PAD_RATIO).toInt().coerceAtLeast(2)
-        val out = Box(b.x1 - px, b.y1 - py, b.x2 + px, b.y2 + py)
-        return if (shell == null) out else Box(
-            maxOf(out.x1, shell.x1), maxOf(out.y1, shell.y1),
-            minOf(out.x2, shell.x2), minOf(out.y2, shell.y2),
+        if (shell == null) return Box(b.x1 - px, b.y1 - py, b.x2 + px, b.y2 + py)
+
+        // Kep phan NOI THEM vao trong vo bong, nhung KHONG BAO GIO cat vao
+        // chinh hop chu.
+        //
+        // Ban dau toi viet cho nay la phep GIAO voi vo bong. Sai: cong AD-5
+        // chi doi hop chu nam trong vo >= 0.9, nen 10% con lai duoc phep tho
+        // ra — va phep giao cat dung phan tho ra do. Ket qua la o nen NHO HON
+        // ca hop chu, tuc la ban sua lam chu goc lo ra NHIEU HON truoc.
+        return Box(
+            maxOf(b.x1 - px, shell.x1).coerceAtMost(b.x1),
+            maxOf(b.y1 - py, shell.y1).coerceAtMost(b.y1),
+            minOf(b.x2 + px, shell.x2).coerceAtLeast(b.x2),
+            minOf(b.y2 + py, shell.y2).coerceAtLeast(b.y2),
         )
     }
 
@@ -100,9 +113,20 @@ object BubbleRenderer {
             color = sample(b); style = Paint.Style.FILL
         }
         if (shell != null) {
-            canvas.drawOval(
+            // HINH CHU NHAT BO GOC, khong phai ellipse.
+            //
+            // Do tren may: 11/12 bubble CO vo bong, tuc ellipse van duoc to —
+            // nhung chu Nhat con sot nam o RIA bong, dung cho ellipse noi tiep
+            // thu hep lai. Ellipse chi cham khung o 4 diem giua canh; phan con
+            // lai cua canh bo trong.
+            //
+            // Chu nhat bo goc noi tiep CUNG khung thi KHONG BAO GIO vuot ra
+            // ngoai vo bong — bien ngoai y het ellipse — ma phu nhieu hon han.
+            // Doi hinh la duoc, khong phai danh doi "che nhieu hay it".
+            val r = minOf(shell.width, shell.height) * CORNER_RATIO
+            canvas.drawRoundRect(
                 shell.x1.toFloat(), shell.y1.toFloat(),
-                shell.x2.toFloat(), shell.y2.toFloat(), fill
+                shell.x2.toFloat(), shell.y2.toFloat(), r, r, fill
             )
         }
         val r = padded(b, shell)
