@@ -2252,6 +2252,77 @@ mat 10 phut va bien hai trong nam dong o bang tren tu "doan" thanh "da do".
 
 ---
 
+## F57 — Vut 10 ban dich DUNG vi mot muc hong la danh doi sai phia
+
+Nguoi dung: *"cu dich duoc mot so bong thoai, con lai ko dich nua"*. Log:
+
+```
+14:20:06  Translating 0/18 -> 10/18    roi hong
+14:22:06  Translating 0/18 -> 10/18    thu lai, hong dung cho do
+14:24:01  xong: ve 0 bubble            vut sach
+```
+
+F45 da cho giu lai phan da dich khi mo hinh **dung som**, nhung dieu kien viet
+la `reason == null` — tuc chi giu khi KHONG co muc nao hong. O day mo hinh sinh
+muc thu 11 lech jaEcho, nen `reason != null`, va ca 10 bong dung bi vut.
+
+Ly do vut sach ban dau (F19): so mo hinh gan ban dich lech mot nac cho CA trang.
+Nhung **cong jaEcho kiem tung bong mot** — moi bong da nhan deu doi chieu chu
+Nhat cua chinh id do. Mot muc hong o cuoi khong lam nhung muc da kiem tro nen
+dang ngo. Da bo dieu kien `reason == null`: het luot thu thi giu moi bong da qua
+cong, bat ke co muc hong hay khong.
+
+Kem theo mot loi dem: `drawn` trong `CaptureService` cong don qua CA HAI luot
+thu (10 + 10 = 20) vi `Retracted` khong tru lai — nen `"xong: ve N bubble"` noi
+sai so bong thuc su tren man hinh.
+
+---
+
+## F58 — Mo hinh dung o dung 10 bong, va KHONG phai vi bi cat do dai
+
+Sau F57, trang 18 bong ve duoc 10. Nhung tai sao dung dung 10?
+
+Hai luot lien tiep deu dung o 10 — dau ra tat dinh (F47) nen day khong phai rui.
+Con so tron nhu the giong dau hieu cua mot **tran do dai bai lam**: moi bong
+trong JSON ton ~35-45 token, 10 bong ~400 token.
+
+`javap`: `ConversationConfig` co `maxOutputToken`, app khong dat. Dat
+`maxOutputToken = 2048`, chay lai — **van dung o 10**. Gia thuyet chet.
+
+Vay khong phai bi cat, ma la mo hinh 2 ti tham so **mat mach** sau chung ay muc:
+no tu dong JSON lai va coi nhu xong.
+
+---
+
+## F59 — Chia trang thanh tung dot: 0/18 thanh 18/18, va nhanh hon
+
+AD-3 chot dua CA TRANG trong mot lan goi, va ly do cua no van dung (xung ho,
+mach hoi thoai, tong thoi gian nhanh gap 3,3 lan). Nhung AD-3 **gia dinh mo
+hinh tra duoc het** — do tren may thi voi 18 bong no khong tra noi.
+
+Chia thanh dot toi da 10 bong, theo dung thu tu doc:
+
+```
+truoc:  1 lan goi x 2 luot thu  ->  0/18 bong,   4 phut
+sau:    dot 10 bong + dot 8 bong -> 18/18 bong,  2 phut 25
+```
+
+**Vua du hon vua nhanh hon** — vi truoc do mot nua thoi gian dung de thu lai mot
+lan chac chan se hong.
+
+Mat mat that, phai ghi ro: hai nhan vat noi chuyen vat qua ranh gioi dot thi
+xung ho co the lech, vi moi dot la mot lan goi rieng khong thay dot kia. Bong
+lien nhau nam cung dot nen phan lon mach hoi thoai van duoc giu.
+
+### Quy tac rut ra
+
+**Mot quyet dinh kien truc dung co the dua tren mot gia dinh chua ai kiem.**
+AD-3 dung ve ly do, nhung "mo hinh tra du ca trang" la dieu kien ngam cua no —
+va dieu kien do sai o trang dong bong thoai. Quyet dinh khong sai; pham vi cua
+no bi ke rong hon thuc te.
+
+---
+
 ## Còn nợ
 
 | # | Việc | Chặn gì | Trạng thái |

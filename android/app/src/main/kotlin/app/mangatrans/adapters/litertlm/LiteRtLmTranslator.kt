@@ -9,6 +9,7 @@ import app.mangatrans.ports.GlossaryKind
 import app.mangatrans.ports.Translator
 import com.google.ai.edge.litertlm.Backend
 import com.google.ai.edge.litertlm.Engine
+import com.google.ai.edge.litertlm.ConversationConfig
 import com.google.ai.edge.litertlm.EngineConfig
 import com.google.ai.edge.litertlm.Message
 import com.google.ai.edge.litertlm.MessageCallback
@@ -53,6 +54,9 @@ class LiteRtLmTranslator(
 
     private companion object {
         const val TAG = "LiteRtLmTranslator"
+
+        /** Tran do dai bai lam. Xem cho goi `createConversation`. */
+        const val MAX_OUTPUT_TOKENS = 2048
     }
 
     private val lock = Mutex()
@@ -104,7 +108,22 @@ class LiteRtLmTranslator(
             val parser = StreamingJsonParser()
 
             lock.withLock {
-                e.createConversation().use { conv ->
+                e.createConversation(
+                    ConversationConfig(
+                        // ⚠️ Khong dat thi lay mac dinh cua thu vien, va mac
+                        // dinh do CAT NGANG bai lam. Do tren may: mot trang 18
+                        // bong, mo hinh dung o **dung 10 bong** — hai luot lien
+                        // tiep deu dung 10, khong phai ngau nhien.
+                        //
+                        // Moi bong trong JSON tra ve ton khoang 35-45 token, nen
+                        // 10 bong ~ 400 token. Con so tron nhu the la dau hieu
+                        // cua mot tran, khong phai mo hinh "het y" (F58).
+                        //
+                        // 2048 du cho mot trang rat day chu; trang thuong chi
+                        // dung het mot phan nho, va phan khong dung khong ton gi.
+                        maxOutputToken = MAX_OUTPUT_TOKENS,
+                    )
+                ).use { conv ->
                     val done = CompletableDeferred<Unit>()
                     var seen = 0
                     val prompt = buildPrompt(page, glossary)

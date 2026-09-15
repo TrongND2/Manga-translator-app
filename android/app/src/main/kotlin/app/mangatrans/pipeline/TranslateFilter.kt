@@ -36,10 +36,71 @@ class TranslateFilter(
      *   3. lech  -> HUY ngay, phat Retracted(nhung id da ve), thu lai ca trang
      *   4. van lech -> PageRejected, toan bo tro ve nguyen ban (AD-9)
      */
+    /**
+     * Trang nhieu bong thi CHIA THANH TUNG DOT, khong dua het mot lan.
+     *
+     * AD-3 chot dua ca trang trong MOT lan goi, va ly do do van dung — nhung no
+     * gia dinh mo hinh tra duoc het. Do tren may thi khong:
+     *
+     * ```
+     *   trang 18 bong, luot 1 -> dung o 10/18
+     *   trang 18 bong, luot 2 -> dung o 10/18     (dau ra tat dinh, khong phai rui)
+     * ```
+     *
+     * Da thu nghi ngo tran do dai bai lam: dat `maxOutputToken = 2048` — **van
+     * dung o 10**. Khong phai bi cat, ma la mo hinh 2 ti tham so mat mach sau
+     * chung ay muc.
+     *
+     * Nen chia thanh dot <= `MAX_PER_CALL` bong, theo DUNG THU TU DOC nen bong
+     * lien nhau van nam cung dot va mach hoi thoai phan lon duoc giu. Mat mat
+     * that: hai nhan vat noi chuyen vat qua ranh gioi dot thi xung ho co the
+     * lech. Doi lai la **dich duoc het trang** thay vi mat mot nua (F59).
+     */
+    private companion object {
+        /**
+         * Bao nhieu bong moi lan goi LLM. Do tren M52: trang 18 bong thi mo
+         * hinh dung o dung 10, hai luot lien tiep deu vay. Trang 12 bong thi
+         * tra du. Lay 10 cho co bien.
+         */
+        const val MAX_PER_CALL = 10
+    }
+
     fun stream(job: PageJob): Flow<PageEvent> = flow {
+        val all = job.translatable
+        if (all.isEmpty()) {
+            emit(PageEvent.Done(job, 0)); return@flow
+        }
+        if (all.size > MAX_PER_CALL) {
+            val merged = LinkedHashMap<Int, Bubble>()
+            all.chunked(MAX_PER_CALL).forEach { chunk ->
+                val ids = chunk.map { it.id }.toSet()
+                val sub = job.withBubbles(
+                    job.bubbles.map {
+                        if (it.id in ids || it.vi != null) it
+                        else it.copy(state = BubbleState.Suspect)
+                    }
+                )
+                translateOnce(sub, merged)
+            }
+            val out = job.bubbles.map { merged[it.id] ?: it }
+            emit(PageEvent.Done(job.withBubbles(out), 0))
+            return@flow
+        }
+        translateOnce(job, null)
+    }
+
+    /**
+     * @param sink neu khac null thi ghi ket qua vao day va KHONG phat `Done`
+     *   (dang chia dot — nguoi goi phat `Done` mot lan o cuoi).
+     */
+    private suspend fun kotlinx.coroutines.flow.FlowCollector<PageEvent>.translateOnce(
+        job: PageJob,
+        sink: MutableMap<Int, Bubble>?,
+    ) {
         val truth = job.translatable.associate { it.id to it.ja }
         if (truth.isEmpty()) {
-            emit(PageEvent.Done(job, 0)); return@flow
+            if (sink == null) emit(PageEvent.Done(job, 0))
+            return
         }
 
         val glossary = glossaryOf()
@@ -82,9 +143,9 @@ class TranslateFilter(
 
             val reason = mismatch
             if (reason == null && accepted.size == truth.size) {
-                val merged = job.bubbles.map { accepted[it.id] ?: it }
-                emit(PageEvent.Done(job.withBubbles(merged), 0))
-                return@flow
+                if (sink != null) { sink.putAll(accepted); return }
+                emit(PageEvent.Done(job.withBubbles(job.bubbles.map { accepted[it.id] ?: it }), 0))
+                return
             }
 
             // ⚠️ THIEU bubble KHAC HAN voi SAI bubble.
@@ -99,11 +160,25 @@ class TranslateFilter(
             // **ca 6 bi vut va nguoi dung nhan mot cau bao loi**. Gio: het luot
             // thu ma chi thieu, thi giu lai phan da xac thuc, phan con lai de
             // nguyen tieng Nhat. Dich mot nua van hon khong dich gi (F45).
+            // Het luot thu ma van khong du: GIU nhung bong da qua cong jaEcho.
+            //
+            // Truoc day cho nay doi `reason == null`, tuc chi giu khi mo hinh
+            // **dung som**; con khi no sinh ra mot muc HONG thi vut sach. Do
+            // tren may, mot trang 18 bong: mo hinh dich dung 10 bong roi sinh
+            // muc thu 11 lech jaEcho — va ca 10 bong dung bi vut, nguoi dung
+            // nhan mot trang trang tron.
+            //
+            // Ly do vut sach ngay tu dau la so mo hinh gan ban dich lech mot
+            // nac cho CA trang (F19). Nhung cong jaEcho kiem TUNG BONG MOT:
+            // moi bong da nhan deu da doi chieu chu Nhat cua chinh id do. Mot
+            // muc hong o cuoi khong lam nhung muc da kiem tro nen dang ngo.
+            //
+            // Vut 10 ban dich dung vi mot muc hong la danh doi sai phia (F57).
             val lastTry = attempt == cfg.translateRetries
-            if (reason == null && lastTry && accepted.isNotEmpty()) {
-                val merged = job.bubbles.map { accepted[it.id] ?: it }
-                emit(PageEvent.Done(job.withBubbles(merged), 0))
-                return@flow
+            if (lastTry && accepted.isNotEmpty()) {
+                if (sink != null) { sink.putAll(accepted); return }
+                emit(PageEvent.Done(job.withBubbles(job.bubbles.map { accepted[it.id] ?: it }), 0))
+                return
             }
 
             // AD-17 — go nhung bubble DA VE. Bat buoc, khong phai truong hop ngoai le.
@@ -113,7 +188,9 @@ class TranslateFilter(
             attempt++
         }
 
-        // Thu lai het luot ma van lech -> ca trang tro ve nguyen ban (AD-9).
-        emit(PageEvent.PageRejected("lech anh xa id sau ${cfg.translateRetries + 1} lan thu"))
+        // Thu lai het luot ma van lech -> tro ve nguyen ban (AD-9).
+        if (sink == null) {
+            emit(PageEvent.PageRejected("lech anh xa id sau ${cfg.translateRetries + 1} lan thu"))
+        }
     }
 }

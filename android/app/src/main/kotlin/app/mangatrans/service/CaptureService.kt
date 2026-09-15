@@ -347,7 +347,13 @@ class CaptureService : Service() {
                     }
 
                     // AD-17 — go bubble da ve, chu Nhat goc hien lai nguyen ven.
-                    is PageEvent.Retracted -> ov.retract(ev.bubbleIds)
+                    is PageEvent.Retracted -> {
+                        // Tru lai, neu khong thi lan thu hai dem don va
+                        // "xong: ve N bubble" noi sai han so bong tren man.
+                        drawn -= ev.bubbleIds.size
+                        if (drawn < 0) drawn = 0
+                        ov.retract(ev.bubbleIds)
+                    }
 
                     // AD-9 — ca trang tro ve nguyen ban.
                     is PageEvent.PageRejected -> { ov.clearPage(); drawn = 0 }
