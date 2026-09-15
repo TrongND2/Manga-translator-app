@@ -351,7 +351,13 @@ class SetupActivity : AppCompatActivity() {
      */
     private fun confirmClearPageCache() {
         val dir = java.io.File(cacheDir, "pages")
-        val n = dir.listFiles()?.size ?: 0
+        val files = dir.listFiles().orEmpty()
+        val n = files.size
+        // Do tren may: mot trang ~2,9 KB (chi luu CHU, khong luu anh). Tran 64 MB
+        // tuong duong hon 22.000 trang, nen thuc te khong bao gio cham tran —
+        // nhung nguoi dung khong biet dieu do neu app khong noi ra.
+        val kb = files.sumOf { it.length() } / 1024.0
+        val size = if (kb < 1024) "%.0f KB".format(kb) else "%.1f MB".format(kb / 1024)
         if (n == 0) {
             Toast.makeText(this, "Chưa có trang nào được lưu.", Toast.LENGTH_SHORT).show()
             return
@@ -359,7 +365,8 @@ class SetupActivity : AppCompatActivity() {
         AlertDialog.Builder(this)
             .setTitle("Dịch lại các trang đã dịch?")
             .setMessage(
-                "App đang nhớ kết quả của $n trang. Xoá đi thì lần sau mở lại " +
+                "App đang nhớ kết quả của $n trang ($size — chỉ là chữ, không " +
+                    "lưu ảnh; đầy 64 MB thì tự dọn trang cũ nhất). Xoá đi thì lần sau mở lại " +
                     "những trang đó, app sẽ dịch mới — và áp dụng từ điển riêng " +
                     "bạn vừa sửa.\n\nMỗi trang dịch mới mất khoảng 1–2 phút.\n\n" +
                     "Gói mô hình và từ điển riêng KHÔNG bị xoá."
