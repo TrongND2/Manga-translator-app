@@ -25,6 +25,8 @@ class OverlayController(
     private val onGuide: () -> Unit,
     private val onGrab: () -> Unit,
     private val onClose: () -> Unit,
+    /** Nguoi dung cham hai cai vao mot bong thoai de sua ban dich cua no. */
+    private val onEditBubble: (Int) -> Unit = {},
 ) : OverlayGate {
 
     private val wm = ctx.getSystemService(Context.WINDOW_SERVICE) as WindowManager
@@ -59,7 +61,11 @@ class OverlayController(
      * Lop phu TU nhan cu chi cham giu (Story 3.6) — cac cua so ve cua no cung
      * chinh la cac cua so nhan cham. Xem ghi chu dau `TranslationOverlay`.
      */
-    val translation = TranslationOverlay(ctx, wm) { peeking -> selfChanging.set(peeking) }
+    val translation = TranslationOverlay(
+        ctx, wm,
+        onPeek = { peeking -> selfChanging.set(peeking) },
+        onEditBubble = { id -> onEditBubble(id) },
+    )
 
     fun show() = icon.show()
 

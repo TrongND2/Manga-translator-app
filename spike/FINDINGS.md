@@ -2855,6 +2855,167 @@ dong xac nhan kem [Doi khoa] [Xoa khoa].
 nay cai bi giau la mot nut lam hong moi trang dich ve sau.
 ---
 
+## F67 — Liec nguyen ban: an chinh view dang nhan cham thi Android HUY cu cham
+
+Nguoi dung bao hai chuyen, hoa ra cung mot ho:
+
+> *"Tôi hold vào bóng thoại muốn xem, nó nháy hiện ra tiếng Nhật toàn bộ các
+> bóng thoại khác rồi tự quay về luôn"*
+>
+> *"tôi chỉ cần click vào bất kì bóng thoại nào thì mất luôn nội dung dịch cả
+> trang đấy luôn"*
+
+### Loi 1 — ca trang cung an, khong phai mot bong
+
+`peeking` la mot `Boolean` toan cuc va `applyVisibility()` dat `visibility` cho
+**moi** pane. Giu mot bong la an het.
+
+### Loi 2 — nhay roi tu quay ve
+
+```kotlin
+MotionEvent.ACTION_DOWN -> { v.postDelayed(::startPeek, HOLD_MS); true }
+```
+
+`startPeek` dat pane thanh `INVISIBLE`. Nhung **pane do chinh la view dang nhan
+chuoi cham**. View vo hinh thi Android khong dispatch tiep cho no nua — no gui
+`ACTION_CANCEL`, va handler goi `stopPeek()` ngay lap tuc. Nguoi dung thay dung
+mot cai nhay.
+
+Bai hoc chung: **dung an chinh cai view dang theo doi cu cham.** Muon "bien
+mat" ma van giu duoc cu cham thi phai ve rong, khong phai `visibility = GONE`.
+
+Chua: bo `visibility` han cho viec liec. Them `peekedId: Int?`, va **moi pane ve
+thieu dung bong do**:
+
+```kotlin
+val list = peekedId?.let { p -> bubbles.values.filter { it.id != p } }
+    ?: bubbles.values.toList()
+```
+
+Ve thieu o MOI pane chu khong chi pane cua no: bong thoai chong nhau thi mot
+phan cua no do pane ben canh ve.
+
+### Loi 3 — `removeCallbacks(::startPeek)` khong huy duoc gi
+
+```kotlin
+v.postDelayed(::startPeek, HOLD_MS)      // tao doi tuong A
+v.removeCallbacks(::startPeek)           // go doi tuong B — khong phai A
+```
+
+Moi lan viet `::startPeek` Kotlin **tao mot instance moi**. Hai doi tuong khac
+nhau nen `removeCallbacks` khong tim thay gi de go.
+
+Hau qua la loi 2 cua nguoi dung: cham nhanh mot cai, `ACTION_UP` chay
+`stopPeek()` (luc do chua peek nen no return ngay), roi **250 ms sau
+`startPeek` van chay** — ma cu cham da ket thuc, khong con ai goi `stopPeek`
+nua. Ca trang mat ban dich va **khong tu quay lai**.
+
+Chua: giu lai `Runnable` trong mot bien.
+
+### Do lai bang pixel
+
+| | Khac so voi truoc thao tac |
+|---|---|
+| Cham mot cai vao bong thoai | **0.00 / 255** — khong doi mot pixel |
+| Dang giu | 0.85, va vung doi la `x 897-1013, y 699-1021` = dung MOT bong |
+| Sau khi tha | **0.00** — ban dich tro lai y nguyen |
+
+### Quy tac rut ra
+
+**Mot method reference khong co danh tinh on dinh.** Cho nao co cap
+`post`/`remove`, `add`/`removeListener`, `register`/`unregister` — phai giu lai
+chinh doi tuong da truyen vao, khong duoc viet lai bieu thuc `::ham` lan thu hai.
+
+---
+
+## F68 — Sua bong thoai: Activity tu giet ban dich, va cache tinh tu ANH nen tu dien khong hoi to
+
+Nguoi dung hoi: *"ko có cách nào chọn nội dung dịch của trang mình muốn xóa,
+hoặc xóa nội dung dịch cụ thể à?"*
+
+Truoc khi de xuat, hai su that loai bot phuong an:
+
+1. **App khong luu anh trang nao.** Khoa cache la `contentKey` — bam SHA-1 cua
+   pixel trong vung bong thoai. Ten file la `5c1d5674….json`, ben trong chi co
+   chu. Nen mot man hinh "danh sach trang da dich" se la mot danh sach chuoi bam
+   vo nghia; muon cho chon thi phai bat dau **luu anh man hinh**, thu app dang
+   co y khong lam.
+2. **Xoa roi dich lai thuong ra y het.** Da do: dich cung mot trang hai lan cho
+   **5/5 cau giong het tung chu**. Nen "xoa ban dich cua trang nay" tu no gan
+   nhu vo dung, tru khi tu dien rieng da doi.
+
+=> Nhu cau that khong phai "xoa co chon loc" ma la **"sua dung cho sai"**.
+
+### Cai bay 1: man sua lam bang Activity thi tu giet ban dich no dang sua
+
+Ban dau lam `EditBubbleActivity`. No kin man hinh, nen bo canh trang (F61/F64)
+thay khung hinh doi that va ket luan nguoi dung da lat trang:
+
+```
+20:23:13  man hinh doi (khac 0.94) — dung dich, go lop phu
+```
+
+Ca trang mat ban dich dung luc mo o sua.
+
+Co the va bang cach tam dung bo canh, nhung do la chua trieu chung. Nguyen nhan
+la **roi trang**. Nguoi dung noi dung cho: *"để thành popup được ko nhỉ ? đỡ
+phải rời trang hiện tại"*. Lam lai thanh **cua so noi do service ve**
+(`EditBubbleOverlay`): app doc truyen khong bi day xuong nen, trang van nam
+nguyen, va bong thoai dang sua nhin thay ngay canh o nhap.
+
+Cua so nay **nhan ban phim** (khong dat `FLAG_NOT_FOCUSABLE`) vi phai go chu vao
+day; doi lai la no nuot phim Back nen phai tu bat `KEYCODE_BACK`. Va **khong**
+duoc dat `FLAG_LAYOUT_NO_LIMITS` — co do chan `ADJUST_RESIZE`, ban phim len se
+che mat cac nut Luu.
+
+### Cai bay 2: dong popup thi bat phai frame chup luc popup con che man hinh
+
+Popup van phu kin trang nen bo canh phai ngung trong luc no mo (`selfChanging`).
+Nhung ngung khong du:
+
+```
+20:33:11  man hinh doi (khac 1.31) — dung dich, go lop phu
+```
+
+dung giay dong popup. `ImageReader` giu hang doi vai frame, nen nhip hoi dau
+tien sau khi dong lay phai mot frame **chup tu luc popup con che man hinh**.
+Phai `drainFrames()` truoc khi bo co. Day la lan thu hai cung mot loai loi
+trong du an (F42 la lan dau) — hang doi frame la thu phai don moi khi man hinh
+vua bi chinh ta lam doi.
+
+### Cai bay 3: them muc tu dien KHONG lam doi cac trang da dich
+
+Khoa cache tinh tu **anh**, khong tinh tu tu dien. Nen sua tu dien xong thi moi
+trang da dich van tra ve ban cu **mai mai** — nguoi dung sua ma khong thay gi
+doi. Duong duy nhat truoc day la xoa SACH moi trang da dich.
+
+Chua: moi muc cache co luu `ja` cua tung bong, nen loc duoc dung nhung trang co
+chua cum vua them:
+
+```kotlin
+suspend fun forgetContaining(surface: String): Int
+```
+
+File chi vai KB chu (khong co anh) nen quet la viec re. Do tren may: luu mot muc
+-> **cache 11 file con 10**, va app bao *"Đã lưu. 1 trang đã dịch có cụm này sẽ
+được dịch lại khi bạn mở."* Khong dung toi 10 trang con lai.
+
+### Do lai toan tuyen
+
+| | Ket qua |
+|---|---|
+| Cham hai cai vao bong | popup mo, trang truyen van nhin thay ben duoi |
+| Sua chu roi Luu | **0,13% pixel doi**, gioi han trong `x 920-991, y 799-918` = dung vung chu cua mot bong |
+| Bo canh trang sau khi dong popup | khong con dong `man hinh doi` nao |
+| Mo lai dung trang do | o dich hien lai dung chu da sua — cache giu duoc |
+
+### Quy tac rut ra
+
+**Khi mot man hinh phu len thu no dang sua, hay hoi no co can la mot Activity
+khong.** Activity keo theo ca vong doi, task stack va — o day — mot he thong
+canh man hinh tuong nguoi dung da bo di.
+---
+
 ## Còn nợ
 
 | # | Việc | Chặn gì | Trạng thái |

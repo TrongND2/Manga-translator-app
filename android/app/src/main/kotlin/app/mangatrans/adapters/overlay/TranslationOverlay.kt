@@ -64,11 +64,16 @@ class TranslationOverlay(
     private val wm: WindowManager,
     /** Bao ra ngoai khi nguoi dung dang giu de liec nguyen ban (Story 3.6). */
     private val onPeek: (Boolean) -> Unit = {},
+    /** Cham hai cai vao mot bong thoai = muon sua ban dich cua rieng no. */
+    private val onEditBubble: (Int) -> Unit = {},
 ) {
 
     private companion object {
         /** Giu bao lau thi coi la "liec", duoi nguong nay coi nhu cham nham. */
         const val HOLD_MS = 250L
+
+        /** Hai cu cham cach nhau duoi chung nay thi coi la cham hai cai. */
+        const val DOUBLE_TAP_MS = 400L
 
         /** Duoi co nay thi khong dang mot cua so. */
         const val MIN_SIDE_PX = 8
@@ -92,7 +97,8 @@ class TranslationOverlay(
     private val bubbles = LinkedHashMap<Int, Bubble>()
     private val panes = LinkedHashMap<Int, Pane>()
 
-    private var peeking = false
+    /** Bong dang duoc giu de liec nguyen ban. `null` = khong liec. */
+    private var peekedId: Int? = null
     private var visible = true
 
     /**
@@ -108,7 +114,7 @@ class TranslationOverlay(
      * `getLocationOnScreen` tra ve vi tri THAT cua cua so, nen cong thuc duoi
      * tu dung o ca hai truong hop.
      */
-    private inner class Pane : View(ctx) {
+    private inner class Pane(val bubbleId: Int) : View(ctx) {
         private val loc = IntArray(2)
 
         override fun onDraw(canvas: Canvas) {
@@ -116,7 +122,14 @@ class TranslationOverlay(
             getLocationOnScreen(loc)
             canvas.translate(-loc[0].toFloat(), (offsetY - loc[1]).toFloat())
             // Ve CA TRANG; he thong tu xen theo khung cua so nay.
-            BubbleRenderer.drawPage(canvas, bubbles.values.toList(), typeface) {
+            //
+            // Bo dung bong dang duoc liec — o MOI cua so, khong chi cua so cua
+            // no. Bong thoai chong nhau thi mot phan cua no duoc cua so ben
+            // canh ve; khong bo o do thi giu de liec van con thay mot manh ban
+            // dich dinh lai.
+            val list = peekedId?.let { p -> bubbles.values.filter { it.id != p } }
+                ?: bubbles.values.toList()
+            BubbleRenderer.drawPage(canvas, list, typeface) {
                 BubbleRenderer.sampleBackground(src, it)
             }
         }
@@ -134,6 +147,19 @@ class TranslationOverlay(
 
     /** FR-044 — hien dan tung bubble ngay khi co, khong cho du ca man. */
     fun add(bubble: Bubble) {
+        bubbles[bubble.id] = bubble
+        sync()
+    }
+
+    /**
+     * Thay ban dich cua mot bong da ve — nguoi dung vua sua tay.
+     *
+     * Khac `add` o cho no khong tao cua so moi: bong nay da co cua so roi, chi
+     * can ve lai. `sync()` van chay vi chu moi co the dai/ngan hon nen khung ve
+     * doi theo.
+     */
+    fun replace(bubble: Bubble) {
+        if (bubble.id !in bubbles) return
         bubbles[bubble.id] = bubble
         sync()
     }
@@ -187,9 +213,9 @@ class TranslationOverlay(
             if (r.width < MIN_SIDE_PX || r.height < MIN_SIDE_PX) return@forEach
             val p = panes[id]
             if (p == null) {
-                val pane = Pane()
+                val pane = Pane(id)
                 wirePeek(pane)
-                pane.visibility = if (visible && !peeking) View.VISIBLE else View.INVISIBLE
+                pane.visibility = if (visible) View.VISIBLE else View.INVISIBLE
                 runCatching { wm.addView(pane, params(r)) }.onSuccess { panes[id] = pane }
             } else {
                 runCatching { wm.updateViewLayout(p, params(r)) }
@@ -205,37 +231,92 @@ class TranslationOverlay(
         panes.clear()
     }
 
+    /**
+     * Chi con phuc vu viec AN TAM DE CHUP (AD-11). Liec nguyen ban khong dung
+     * duong nay nua — xem ghi chu o `startPeek`.
+     */
     private fun applyVisibility() {
-        val v = if (visible && !peeking) View.VISIBLE else View.INVISIBLE
+        val v = if (visible) View.VISIBLE else View.INVISIBLE
         panes.values.forEach { it.visibility = v }
     }
 
     // ---------- Story 3.6: cham giu de liec nguyen ban ----------
 
+    /**
+     * ⚠️ Phai GIU LAI `Runnable`, khong duoc dung `::startPeek`.
+     *
+     * Moi lan viet `::startPeek` Kotlin **tao mot doi tuong moi**, nen
+     * `removeCallbacks(::startPeek)` go mot doi tuong khac va khong huy duoc
+     * gi. Hau qua nguoi dung thay: cham nhanh mot cai vao bong thoai, 250 ms
+     * sau `startPeek` van chay, ma `ACTION_UP` thi da qua roi nen khong con ai
+     * goi `stopPeek` — **ca trang mat ban dich va khong tu quay lai**.
+     */
+    private var pending: Runnable? = null
+
+    /** Lan cham gan nhat, de nhan ra cham hai cai (Story sua bong thoai). */
+    private var lastTapAt = 0L
+    private var lastTapId = -1
+
     @SuppressLint("ClickableViewAccessibility")
-    private fun wirePeek(v: View) = v.setOnTouchListener { _, e ->
+    private fun wirePeek(v: Pane) = v.setOnTouchListener { _, e ->
         when (e.actionMasked) {
-            MotionEvent.ACTION_DOWN -> { v.postDelayed(::startPeek, HOLD_MS); true }
+            MotionEvent.ACTION_DOWN -> {
+                cancelPending(v)
+                val r = Runnable { startPeek(v.bubbleId) }
+                pending = r
+                v.postDelayed(r, HOLD_MS)
+                true
+            }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                v.removeCallbacks(::startPeek); stopPeek(); true
+                val wasPeeking = peekedId != null
+                cancelPending(v)
+                stopPeek()
+                if (!wasPeeking && e.actionMasked == MotionEvent.ACTION_UP) tapped(v.bubbleId)
+                true
             }
             else -> false
         }
     }
 
-    private fun startPeek() {
-        if (peeking) return
-        peeking = true
-        applyVisibility()
+    private fun cancelPending(v: View) {
+        pending?.let { v.removeCallbacks(it) }
+        pending = null
+    }
+
+    private fun tapped(id: Int) {
+        val now = android.os.SystemClock.uptimeMillis()
+        if (id == lastTapId && now - lastTapAt < DOUBLE_TAP_MS) {
+            lastTapAt = 0L; lastTapId = -1
+            onEditBubble(id)
+        } else {
+            lastTapAt = now; lastTapId = id
+        }
+    }
+
+    /**
+     * Liec nguyen ban CUA MOT BONG.
+     *
+     * ⚠️ Khong dung `visibility` de an. An chinh cai view dang nhan cu cham thi
+     * Android **huy luon chuoi cham do** (gui `ACTION_CANCEL`), nen `stopPeek`
+     * chay ngay lap tuc — nguoi dung thay mot cai nhay roi ban dich tro lai,
+     * chu khong giu duoc. Thay vao do giu view nguyen ven va **ve thieu** dung
+     * bong do; cho do trong suot nen nguyen ban ben duoi hien len.
+     */
+    private fun startPeek(id: Int) {
+        if (peekedId == id) return
+        peekedId = id
+        redraw()
         onPeek(true)
     }
 
     private fun stopPeek() {
-        if (!peeking) return
-        peeking = false
-        applyVisibility()
+        if (peekedId == null) return
+        peekedId = null
+        redraw()
         onPeek(false)
     }
+
+    private fun redraw() = panes.values.forEach { it.invalidate() }
 
     /**
      * Cua so dat theo TOA DO MAN HINH. `FLAG_LAYOUT_NO_LIMITS` de no khong bi

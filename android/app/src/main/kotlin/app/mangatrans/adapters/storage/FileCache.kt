@@ -89,6 +89,36 @@ class FileCache(
         Unit
     }
 
+    /**
+     * Quen ket qua dich cua nhung trang CO CHUA mot cum chu Nhat.
+     *
+     * Vi sao can: khoa cache tinh tu ANH, khong tinh tu tu dien. Nen them mot
+     * muc tu dien xong thi moi trang **da dich roi** van tra ve ban cu mai mai
+     * — nguoi dung sua ma khong thay gi doi. Cach duy nhat truoc day la xoa
+     * SACH moi trang da dich, ke ca hang tram trang khong lien quan.
+     *
+     * Moi muc cache co luu `ja` cua tung bong, nen loc dung nhung trang that su
+     * co cum do la viec re: file chi vai KB chu, khong co anh.
+     *
+     * @return so trang bi quen. Bang 0 nghia la cum nay chua tung xuat hien o
+     *   trang nao da dich — khong co gi phai lam.
+     */
+    suspend fun forgetContaining(surface: String): Int = withContext(Dispatchers.IO) {
+        val needle = surface.trim()
+        if (needle.isEmpty()) return@withContext 0
+        var n = 0
+        dir.listFiles().orEmpty().forEach { f ->
+            val hit = runCatching {
+                val arr = JSONObject(f.readText()).getJSONArray("bubbles")
+                (0 until arr.length()).any {
+                    arr.getJSONObject(it).optString("ja").contains(needle)
+                }
+            }.getOrDefault(false)
+            if (hit && f.delete()) n++
+        }
+        n
+    }
+
     /** FR-062 — day thi don ban cu nhat. */
     private fun evictIfNeeded() {
         val files = dir.listFiles()?.sortedBy { it.lastModified() } ?: return

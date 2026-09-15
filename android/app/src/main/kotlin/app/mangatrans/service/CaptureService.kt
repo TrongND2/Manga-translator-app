@@ -20,6 +20,7 @@ import android.view.WindowManager
 import android.widget.Toast
 import app.mangatrans.Composition
 import app.mangatrans.adapters.capture.MediaProjectionSource
+import app.mangatrans.adapters.overlay.EditBubbleOverlay
 import app.mangatrans.adapters.overlay.FloatingIcon
 import app.mangatrans.adapters.overlay.OverlayController
 import app.mangatrans.adapters.storage.PageHash
@@ -60,6 +61,7 @@ class CaptureService : Service() {
 
         const val ACTION_START = "app.mangatrans.START"
         const val ACTION_STOP = "app.mangatrans.STOP"
+
         const val EXTRA_RESULT_CODE = "resultCode"
         const val EXTRA_RESULT_DATA = "resultData"
 
@@ -145,8 +147,21 @@ class CaptureService : Service() {
     /** Mot luot dich dang chay. Cham lan nua khi dang chay thi bo qua, khong xep hang. */
     private var running: Job? = null
 
+    /**
+     * Trang dang hien tren man hinh, GIU LAI sau khi dich xong.
+     *
+     * Can no de sua duoc mot bong thoai: phai biet `contentKey` va danh sach
+     * box thi moi ghi de dung muc cache cua trang nay. Giu ca khi trang lay tu
+     * cache — `Done` phat o ca hai duong.
+     */
+    @Volatile private var currentPage: app.mangatrans.domain.PageJob? = null
+
+
     /** Story 3.7 — canh noi dung ben duoi doi de go lop phu. */
     private var watching: Job? = null
+
+    /** Panel sua bong thoai — tao mot lan roi dung lai. */
+    private var editor: EditBubbleOverlay? = null
 
     /**
      * Nguoi dung DA dong y cho chup chua.
@@ -169,6 +184,7 @@ class CaptureService : Service() {
             onGuide = { openGuide() },
             onGrab = { startGrabText() },
             onClose = { closeEverything() },
+            onEditBubble = { id -> openBubbleEditor(id) },
         ).also { it.show() }
 
         loadEngines()
@@ -389,7 +405,7 @@ class CaptureService : Service() {
                     // AD-9 — ca trang tro ve nguyen ban.
                     is PageEvent.PageRejected -> { ov.clearPage(); drawn = 0 }
 
-                    is PageEvent.Done -> dumpForDiagnosis(ev.job)
+                    is PageEvent.Done -> { currentPage = ev.job; dumpForDiagnosis(ev.job) }
 
                     // Hong ca luot — khac han ket qua tung bubble. Noi ro ly do
                     // bang tieng nguoi (Story 3.8), khong hien ma loi.
@@ -602,6 +618,8 @@ class CaptureService : Service() {
         isRunning = false
         running?.cancel()
         watching?.cancel()
+        editor?.hide()
+        editor = null
         scope.launch {
             runCatching { engines?.translator?.release() }   // AD-24
         }
@@ -628,6 +646,130 @@ class CaptureService : Service() {
      * cum chu tren truyen, app doc ra, roi ho nhet vao tu dien rieng — duong
      * duy nhat ep duoc mo hinh dich theo y minh (F60).
      */
+    // ---------- sua ban dich mot bong thoai ----------
+
+    /**
+     * Cham hai cai vao mot bong -> mo man sua ban dich cua rieng no.
+     *
+     * Vi sao sua chu khong phai xoa roi dich lai: do duoc, dich lai cung mot
+     * trang cho **5/5 cau giong het tung chu**. Xoa chi tra ve dung cai sai cu.
+     */
+    private fun openBubbleEditor(id: Int) {
+        val b = currentPage?.bubbles?.firstOrNull { it.id == id } ?: return
+        val ov = overlays ?: return
+        val panel = editor ?: EditBubbleOverlay(
+            this,
+            getSystemService(WINDOW_SERVICE) as WindowManager,
+            onSavePage = { vi -> applyEdit(id, vi) },
+            onSaveGlossary = { vi -> saveToGlossary(id, b.ja, vi) },
+            onAsk = { ja, back -> askGemini(ja, back) },
+            // Tam ngung bo canh trang trong luc panel mo. Panel la lop phu cua
+            // CHINH ta va no phu kin trang, nen khong ngung thi bo canh ket
+            // luan nguoi dung da lat trang roi go sach ban dich dang sua. Do
+            // duoc voi ban lam bang Activity: `man hinh doi (khac 0.94)` dung
+            // giay mo man sua.
+            //
+            // Dung `selfChanging` chu khong huy han bo canh: moc so sanh giu
+            // nguyen, nen dong panel la no chay tiep ngay, khong phai lay moc lai.
+            // ⚠️ Phai VUT HANG DOI FRAME truoc khi bat bo canh lai.
+            //
+            // `ImageReader` giu toi vai frame, nen nhip hoi dau tien sau khi
+            // dong panel se bat phai mot frame chup TU LUC PANEL CON CHE man
+            // hinh. Frame do khac moc mot troi mot vuc va bo canh ket luan
+            // ngay la doi trang. Do duoc: `man hinh doi (khac 1.31)` dung giay
+            // dong panel, va ca trang mat ban dich.
+            onClosed = {
+                source?.drainFrames()
+                ov.selfChanging.set(false)
+            },
+        ).also { editor = it }
+
+        ov.selfChanging.set(true)
+        panel.show(b.ja, b.vi.orEmpty())
+    }
+
+    /** Goi Gemini ho panel — panel khong giu scope rieng. */
+    private fun askGemini(ja: String, back: (Result<String>) -> Unit) {
+        val key = app.mangatrans.adapters.cloud.GeminiLookup.key(this)
+        if (key.isNullOrBlank()) {
+            back(Result.failure(IllegalStateException(
+                "chưa có khoá. Vào app → Cài đặt → Tra nghĩa bằng Gemini."
+            )))
+            return
+        }
+        scope.launch {
+            val r = app.mangatrans.adapters.cloud.GeminiLookup(this@CaptureService, key)
+                .meaningOf(ja)
+            withContext(Dispatchers.Main) { back(r) }
+        }
+    }
+
+    /**
+     * Luu mot muc tu dien rieng, VA sua luon bong thoai dang mo.
+     *
+     * Sua luon vi nguoi dung vua go nghia do ra — bat ho doi den lan dich sau
+     * moi thay la vo ly.
+     */
+    private fun saveToGlossary(id: Int, ja: String, vi: String) {
+        if (!app.mangatrans.ports.isUsableSurface(ja)) {
+            toast("Nguyên bản không phải chữ Nhật nên không khớp được trang truyện")
+            return
+        }
+        scope.launch {
+            runCatching {
+                app.mangatrans.adapters.storage.JsonGlossaryStore(
+                    Composition.glossaryFile(this@CaptureService)
+                ).upsertByUser(
+                    app.mangatrans.ports.GlossaryEntry(
+                        seriesKey = "default", surface = ja, meaning = vi,
+                        kind = app.mangatrans.ports.GlossaryKind.Idiom,
+                        status = app.mangatrans.ports.GlossaryStatus.Confirmed,
+                    )
+                )
+            }.onSuccess {
+                // Khoa cache tinh tu ANH chu khong tu tu dien, nen nhung trang
+                // DA dich van tra ve ban cu mai mai. Quen dung nhung trang co
+                // chua cum nay — khong dung toi hang tram trang khong lien quan.
+                val n = runCatching {
+                    app.mangatrans.adapters.storage.FileCache(
+                        java.io.File(cacheDir, "pages")
+                    ).forgetContaining(ja)
+                }.getOrDefault(0)
+                toast(
+                    if (n > 0) "Đã lưu. $n trang đã dịch có cụm này sẽ được dịch lại khi bạn mở."
+                    else "Đã lưu vào từ điển riêng — các trang dịch sau sẽ dùng nghĩa này."
+                )
+            }.onFailure { toast("Không lưu được vào từ điển") }
+        }
+        applyEdit(id, vi)
+    }
+
+    /**
+     * Ghi ban dich nguoi dung vua go: len man hinh NGAY, va vao cache de lan
+     * sau mo lai dung trang nay van con.
+     *
+     * ⚠️ Ghi lai CA trang chu khong chi mot bong: khoa cache di kem chu ky cua
+     * ca danh sach box (AD-18), nen ghi thieu la lan sau doc ra coi nhu hong.
+     */
+    private fun applyEdit(id: Int, vi: String) {
+        val page = currentPage ?: return
+        if (id < 0 || vi.isBlank()) return
+        val next = page.bubbles.map { if (it.id == id) it.copy(vi = vi) else it }
+        currentPage = page.withBubbles(next)
+
+        scope.launch {
+            val edited = next.firstOrNull { it.id == id } ?: return@launch
+            overlays?.translation?.let { ov ->
+                withContext(Dispatchers.Main) { ov.replace(edited) }
+            }
+            runCatching {
+                app.mangatrans.adapters.storage.FileCache(
+                    java.io.File(cacheDir, "pages")
+                ).put(page.contentKey, page.bubbles.map { it.box }, next)
+            }.onFailure { Log.w(TAG, "khong ghi duoc cache sau khi sua: ${it.javaClass.simpleName}") }
+        }
+    }
+
     private fun startGrabText() {
         val ov = overlays ?: return
         val src = source

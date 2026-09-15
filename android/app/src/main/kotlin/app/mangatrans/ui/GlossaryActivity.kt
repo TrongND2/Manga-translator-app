@@ -180,6 +180,23 @@ class GlossaryActivity : AppCompatActivity() {
         bar.addView(Ui.smallButton(this, "Bỏ", Ui.C.danger, Ui.Weight.Quiet) { confirmDelete(e) })
     }
 
+    /**
+     * Quen ket qua dich cua nhung trang CO CHUA cum vua them.
+     *
+     * Vi sao can: khoa cache tinh tu ANH, khong tu tu dien — nen sua tu dien
+     * xong thi cac trang **da dich roi** van tra ve ban cu mai mai, va nguoi
+     * dung sua ma khong thay gi doi. Truoc day duong duy nhat la xoa SACH moi
+     * trang da dich, ke ca hang tram trang khong lien quan.
+     */
+    private suspend fun forgetPagesWith(surface: String) {
+        val n = runCatching {
+            app.mangatrans.adapters.storage.FileCache(
+                java.io.File(cacheDir, "pages")
+            ).forgetContaining(surface)
+        }.getOrDefault(0)
+        if (n > 0) toast("$n trang đã dịch có cụm này sẽ được dịch lại khi bạn mở")
+    }
+
     /** Muc chi moi co chu Nhat, chua ai dat nghia tieng Viet cho no. */
     private fun needsMeaning(e: GlossaryEntry) = e.meaning.trim() == e.surface.trim()
 
@@ -318,6 +335,7 @@ class GlossaryActivity : AppCompatActivity() {
                         // khong con gi de xac nhan nua.
                         status = GlossaryStatus.Confirmed,
                     ))
+                    forgetPagesWith(s)
                     refresh()
                 }
             }

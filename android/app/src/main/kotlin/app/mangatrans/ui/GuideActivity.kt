@@ -37,7 +37,7 @@ class GuideActivity : AppCompatActivity() {
             setPadding(dp(20), dp(20), dp(20), dp(40))
         }
 
-        root.addView(heading("Ba cử chỉ, hết"))
+        root.addView(heading("Bốn cử chỉ, hết"))
         root.addView(
             card(
                 "◉", 0xFF00695C.toInt(), "Chạm icon",
@@ -58,8 +58,16 @@ class GuideActivity : AppCompatActivity() {
         root.addView(
             card(
                 "◐", 0xFF0277BD.toInt(), "Chạm giữ vào bóng thoại",
-                "Chữ Nhật gốc hiện lại trong lúc bạn giữ. Thả ra là bản dịch quay về. " +
-                    "Dùng để đối chiếu.",
+                "Chữ Nhật gốc của ĐÚNG bóng đó hiện lại trong lúc bạn giữ — các bóng " +
+                    "khác vẫn là bản dịch. Thả ra là quay về. Dùng để đối chiếu.",
+            )
+        )
+        root.addView(
+            card(
+                "✎", 0xFFEF6C00.toInt(), "Chạm hai cái vào bóng thoại",
+                "Mở ô sửa bản dịch của riêng bóng đó, ngay trên trang đang đọc — " +
+                    "không phải rời app đọc truyện. Sửa xong bấm Lưu là thấy đổi ngay " +
+                    "tại chỗ.",
             )
         )
         root.addView(
@@ -115,6 +123,17 @@ class GuideActivity : AppCompatActivity() {
         root.addView(heading("Khi có chỗ dịch sai"))
         root.addView(
             card(
+                "✎", 0xFFEF6C00.toInt(), "Cách nhanh nhất: sửa thẳng bóng thoại đó",
+                "Chạm hai cái vào bóng dịch sai → ô sửa hiện ra ngay trên trang. " +
+                    "Có sẵn nút Hỏi Gemini nếu bạn không chắc nghĩa.\n\n" +
+                    "Hai cách lưu, khác nhau rõ:\n" +
+                    "• Lưu cho riêng trang này — chỉ đổi đúng chỗ đó.\n" +
+                    "• Lưu vào từ điển riêng — áp cho MỌI trang, và app tự quên kết quả " +
+                    "cũ của những trang đã dịch CÓ CHỨA cụm đó để chúng được dịch lại.",
+            )
+        )
+        root.addView(
+            card(
                 "⌖", 0xFF00695C.toInt(), "Khoanh lấy chữ rồi tự đặt nghĩa",
                 "Giữ icon → chạm ⌖ → kéo một khung quanh chữ cần lấy. App đọc chữ " +
                     "Nhật trong khung ra, bạn gõ nghĩa tiếng Việt rồi lưu.\n\n" +
@@ -125,10 +144,12 @@ class GuideActivity : AppCompatActivity() {
         )
         root.addView(
             note(
-                "Từ điển riêng áp dụng cho mọi lần dịch sau.",
-                "Kể cả trang đã dịch rồi — nhưng trang đã dịch được app nhớ sẵn kết " +
-                    "quả cũ, nên vào Cài đặt → \"Dịch lại các trang đã dịch\" để xoá " +
-                    "phần nhớ đó.",
+                "Thêm một mục từ điển sẽ tự dọn đúng những trang liên quan.",
+                "App nhớ sẵn kết quả của các trang đã dịch, nên nếu không dọn thì " +
+                    "chúng vẫn trả về bản cũ. Khi bạn lưu một mục, app quét phần nhớ " +
+                    "đó và chỉ quên những trang CÓ CHỨA cụm chữ Nhật vừa thêm — các " +
+                    "trang khác giữ nguyên. Nó báo cho bạn biết bao nhiêu trang.\n\n" +
+                    "Muốn dọn sạch tất cả thì vào Cài đặt → \"Dịch lại các trang đã dịch\".",
             )
         )
         root.addView(
@@ -143,9 +164,9 @@ class GuideActivity : AppCompatActivity() {
         root.addView(
             note(
                 "Tuỳ chọn, mặc định tắt.",
-                "Khi đã khoanh được một cụm chữ, có nút Hỏi Gemini để lấy nhanh nghĩa " +
-                    "gợi ý — tiện khi bạn không chắc cụm đó nghĩa gì. Nút này cũng có " +
-                    "trong ô thêm mục ở Từ điển riêng.",
+                "Có nút Hỏi Gemini để lấy nhanh nghĩa gợi ý — tiện khi bạn không chắc " +
+                    "cụm đó nghĩa gì. Nút này có ở ba chỗ: ô sửa bóng thoại, màn khoanh " +
+                    "lấy chữ, và ô thêm mục ở Từ điển riêng.",
             )
         )
         root.addView(

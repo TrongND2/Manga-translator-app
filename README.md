@@ -34,18 +34,32 @@ Vì sao dịch cả trang một lần chứ không từng bóng: mô hình nhìn
 2. Mở app đọc truyện, **chạm icon** → cho phép chụp màn hình
 3. **Chạm icon lần nữa** → dịch
 
-Bốn cử chỉ:
+Cử chỉ:
 
 | | |
 |---|---|
 | **Chạm icon** | dịch trang đang hiện |
 | **Giữ icon** | 📖 hướng dẫn · ⌖ khoanh lấy chữ · ✕ tắt app |
-| **Chạm giữ vào bóng thoại** | xem lại chữ Nhật gốc |
+| **Chạm giữ vào bóng thoại** | xem lại chữ Nhật gốc của riêng bóng đó |
+| **Chạm hai cái vào bóng thoại** | sửa bản dịch của bóng đó, ngay trên trang |
 | **Lật trang / chuyển app** | dừng dịch ngay, gỡ bản dịch cũ |
 
 > Trang đầu mất khoảng 3 phút — mô hình phải đọc hết trang trước khi dịch, không phải app treo. Trang đã dịch rồi thì gần như tức thì.
 
 ---
+
+## ✎ Dịch sai một chỗ? Sửa thẳng chỗ đó
+
+Chạm hai cái vào bóng thoại dịch sai — ô sửa hiện ra **ngay trên trang đang đọc**, không phải rời app đọc truyện. Sửa xong bấm Lưu là thấy đổi ngay tại chỗ.
+
+Hai cách lưu, khác nhau rõ:
+
+| | |
+|---|---|
+| **Lưu cho riêng trang này** | chỉ đổi đúng chỗ đó |
+| **Lưu vào từ điển riêng** | áp cho **mọi trang**, kể cả trang đã dịch rồi |
+
+Vì sao phải sửa chứ không phải xoá rồi dịch lại: đo trên máy thật, dịch lại cùng một trang cho **5/5 câu giống hệt từng chữ** — mô hình không hề ngẫu nhiên. Xoá chỉ trả về đúng cái sai cũ.
 
 ## ⌖ Khoanh lấy chữ → từ điển riêng
 
@@ -53,9 +67,11 @@ Giữ icon → chạm `⌖` → kéo một khung quanh chữ cần lấy. App đ
 
 **Từ điển riêng là cách bạn dạy app.** Mô hình chạy trên máy đôi khi bỏ qua một cụm, hoặc dịch một thành ngữ theo nghĩa đen — một mục từ điển ép được nó dịch đúng, và áp dụng cho **mọi lần dịch sau**. App cũng tự đề xuất tên nhân vật lặp lại để bạn duyệt.
 
+Thêm một mục xong, app **tự quét lại những trang đã dịch và chỉ quên đúng những trang có chứa cụm đó** — các trang khác giữ nguyên, và nó báo cho bạn biết bao nhiêu trang sẽ được dịch lại. Không phải sửa từng trang một, cũng không phải xoá sạch.
+
 ## 🔍 Tra nghĩa bằng Gemini — tuỳ chọn, mặc định tắt
 
-Khi khoanh được một cụm chữ, có nút **Hỏi Gemini** để lấy nhanh nghĩa gợi ý.
+Nút **Hỏi Gemini** có ở ba chỗ — ô sửa bóng thoại, màn khoanh lấy chữ, và ô thêm mục ở Từ điển riêng — để lấy nhanh nghĩa gợi ý khi bạn không chắc.
 
 Đây là **đường ra mạng duy nhất** của app, và nó được giữ rất hẹp:
 
