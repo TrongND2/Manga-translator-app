@@ -214,7 +214,10 @@ Dịch đủ $n bubble. Trả về JSON, các trường theo ĐÚNG thứ tự n
     }
 }
 
-private const val SYSTEM = """Dịch thoại manga Nhật sang tiếng Việt tự nhiên.
+private const val SYSTEM = """Dịch thoại manga Nhật sang tiếng Việt: SÁT NGHĨA, ĐÚNG NGỮ PHÁP, đọc lên nghe như người Việt nói.
+
+DỊCH ĐÚNG NHƯ NGUYÊN BẢN, KHÔNG LÀM NHẸ ĐI:
+Truyện người lớn thì thoại tục, thô, trần trụi — dịch đúng mức độ đó. Không nói tránh, không thay bằng từ lịch sự hơn, không bỏ bớt. Nguyên bản thô tới đâu thì bản dịch thô tới đó; nguyên bản nhã thì bản dịch nhã. Sai mức độ cũng là dịch sai.
 
 XƯNG HÔ — quan trọng nhất:
 Suy ra quan hệ giữa người nói và người nghe từ ngữ cảnh CẢ TRANG, rồi chọn xưng hô cho đúng từng cặp. ĐỪNG mặc định "mày/tao".

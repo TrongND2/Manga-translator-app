@@ -62,6 +62,12 @@ class MediaProjectionSource(
 
         const val FRAME_TIMEOUT_MS = 3_000L
 
+        /** Khong con frame moi trong chung nay thi coi nhu he thong ve xong. */
+        const val QUIET_MS = 220L
+
+        /** Nhip hoi trong luc cho man hinh yen. */
+        const val POLL_MS = 30L
+
         /** ImageReader giu toi da bao nhieu anh. 2 la du va it ton bo nho nhat. */
         const val MAX_IMAGES = 2
     }
@@ -129,11 +135,9 @@ class MediaProjectionSource(
         drainFrames()
 
         val bitmap = overlays.hiddenForCapture {
-            // Cho he thong ve xong mot nhip sau khi go lop phu. Khong co cho nay
-            // thi anh chup con dinh icon va ban dich cu — dung loi AD-11 chan.
             delay(HIDE_SETTLE_MS)
             val fresh = ensureDisplay()
-            grabFrame(warmup = fresh)
+            grabSettledFrame(warmup = fresh)
         }
 
         if (stopped.get()) throw CaptureException(CaptureFailure.SessionRevoked)
@@ -202,6 +206,60 @@ class MediaProjectionSource(
      *   frame dau that su chua dang tin. Dat true cho moi lan chup la cach
      *   chac chan de vut mat dung frame minh dang cho (xem `capture()`).
      */
+    /**
+     * Cho man hinh **YEN** roi moi lay anh, thay vi lay frame dau tien thay duoc.
+     *
+     * ⚠️ Day la loi nang nhat cua ca tang chup, va no chi lo ra o lan chup THU
+     * HAI tren cung mot trang.
+     *
+     * Tu F39, lop phu ban dich khong con la MOT cua so ma la **mot cua so cho
+     * moi bong thoai**. An chung di khong con la mot thao tac tuc thi: he thong
+     * go tung cua so mot, va moi buoc trung gian deu sinh ra mot frame. Lay
+     * frame dau tien sau `HIDE_SETTLE_MS` la lay dung mot buoc giua chung — anh
+     * do con **dinh mot phan ban dich cu**.
+     *
+     * Hau qua do duoc, chup lai chinh anh ma OCR nhin thay o lan thu hai:
+     * ```
+     *   JA: Cau…!
+     *   JA: Cauconchamvaodichbaogiorood
+     *   JA: Khongphaitenthatdau!
+     * ```
+     * Do la ban dich tieng Viet cua lan mot, bi OCR doc lai. App dang dich
+     * chinh ban dich cua no. Ket qua: mo hinh nhan de bai vo nghia, jaEcho
+     * lech, ca trang bi tu choi — nguoi dung thay "bam dich lan hai thi khong
+     * co gi xay ra" (F48).
+     *
+     * Cach dung: giu frame MOI NHAT, tiep tuc doi; khi khong con frame moi nao
+     * trong `QUIET_MS` thi coi nhu he thong ve xong. Vua chiu duoc man hinh
+     * tinh (khong frame nao => dung frame dang giu) vua chiu duoc man hinh con
+     * dang doi (doi den khi yen).
+     */
+    private suspend fun grabSettledFrame(warmup: Boolean): Bitmap {
+        val r = reader ?: throw CaptureException(CaptureFailure.NoPermission)
+        if (warmup) repeat(WARMUP_FRAMES) { runCatching { r.acquireLatestImage()?.close() } }
+
+        var held: Image? = null
+        var lastSeen = System.currentTimeMillis()
+        val deadline = lastSeen + FRAME_TIMEOUT_MS
+        try {
+            while (System.currentTimeMillis() < deadline) {
+                val next = runCatching { r.acquireLatestImage() }.getOrNull()
+                if (next != null) {
+                    held?.close()
+                    held = next
+                    lastSeen = System.currentTimeMillis()
+                } else {
+                    if (held != null && System.currentTimeMillis() - lastSeen > QUIET_MS) break
+                    delay(POLL_MS)
+                }
+            }
+            val img = held ?: throw CaptureException(CaptureFailure.Timeout)
+            return toBitmap(img)
+        } finally {
+            held?.close()
+        }
+    }
+
     private suspend fun grabFrame(warmup: Boolean): Bitmap {
         val r = reader ?: throw CaptureException(CaptureFailure.NoPermission)
 

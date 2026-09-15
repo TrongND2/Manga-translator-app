@@ -76,6 +76,13 @@ data class Box(val x1: Int, val y1: Int, val x2: Int, val y2: Int) {
         val inter = (ix2 - ix1).toLong() * (iy2 - iy1).toLong()
         return if (area == 0L) 0.0 else inter.toDouble() / area.toDouble()
     }
+
+    /** Thu vao moi phia theo ty le canh. Khong bao gio thu qua thanh hop rong. */
+    fun inset(ratio: Double): Box {
+        val dx = (width * ratio).toInt().coerceAtMost((width - 2) / 2).coerceAtLeast(0)
+        val dy = (height * ratio).toInt().coerceAtMost((height - 2) / 2).coerceAtLeast(0)
+        return Box(x1 + dx, y1 + dy, x2 - dx, y2 - dy)
+    }
 }
 
 /** Ba lop cua detector `ogkalu/comic-text-and-bubble-detector`. */

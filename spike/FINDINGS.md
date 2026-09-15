@@ -1845,6 +1845,118 @@ lan lay trung binh.
 
 ---
 
+## F48 — App dich lai chinh ban dich cua no, va bang chung nam trong anh no nhin thay
+
+Nguoi dung: *"bam dich trang do lan 2 thi no cha dich gi ca"*. Log cho thay lan
+hai KHONG lay cache ma chup lai va dich lai — roi hong:
+
+```
+11:58:59  xong: ve 8 bubble        <- lan 1, du 8 bong
+11:59:34  Translating 0/8
+12:00:01  Translating 1/8          <- chi ra duoc 1 bong roi hong
+12:00:40  Translating 0/8          <- chay lai tu dau
+12:01:04  Translating 1/8          <- lai hong dung cho do
+12:01:44  xong: ve 0 bubble        <- tu choi ca trang
+```
+
+Nghi anh chup lan hai dinh lop phu. Log khong tra loi duoc cau nay, ma mat
+thuong cung khong: phai nhin **dung tam anh ma OCR nhin thay**. Them duong ghi
+anh do ra file rieng (cung co `/data/local/tmp/mangatrans-diag`), chay lai, va:
+
+```
+JA: Cau…!
+JA: Cauconchamvaodichbaogiorood
+JA: Khongphaitenthatdau!
+JA: Tieusinhbienthaina!
+```
+
+Do la **ban dich tieng Viet cua lan mot**, mat dau, bi OCR tieng Nhat doc lai.
+App dang dich chinh ban dich cua no. Mo tam PNG ra nhin thi thay ro: mot so
+bong da an, mot so **van con nguyen chu Viet**.
+
+### Nguyen nhan
+
+Tu F39, lop phu khong con la MOT cua so ma la **mot cua so cho moi bong thoai**.
+An chung di khong con tuc thi: he thong go tung cua so, moi buoc trung gian sinh
+mot frame. Ban cu doi `HIDE_SETTLE_MS = 120 ms` roi lay frame dau tien thay duoc
+— tuc lay dung mot buoc giua chung.
+
+F39 doi mot cua so lay muoi hai cua so de sua loi mo chu. Cai gia thu hai cua no
+nam o day, va phai ba ngay sau moi lo ra. (Cai gia thu nhat la F44 — cua so de
+len icon.)
+
+### Sua
+
+Khong lay frame dau tien nua ma **doi man hinh yen**: giu frame moi nhat, tiep
+tuc doi; khong con frame moi trong 220 ms thi coi nhu he thong ve xong. Vua chiu
+duoc man hinh tinh (khong frame nao thi dung frame dang giu — chinh la loi F42)
+vua chiu duoc man hinh con dang doi.
+
+Do lai: dich cung mot trang hai lan lien tiep, ca hai deu `gate: 17 vung, 9 co
+vo bong` va `xong: ve 9 bubble` — giong het nhau.
+
+### Quy tac rut ra
+
+**Khi nghi ngo dau vao, hay luu lai dung cai dau vao do.** Toi da co log, co
+anh chup man hinh, co ket qua dich — khong cai nao tra loi duoc cau hoi. Tam
+anh ma OCR thuc su nhin thay tra loi trong mot lan nhin.
+
+---
+
+## F49 — Vo bong mo coi: detector thay cai bong nhung khong thay chu ben trong
+
+Nguoi dung gui anh khoanh do mot bong thoai: *"bong thoai nay nay, co dich dau"*.
+
+Ho so chan doan cua dung trang do:
+
+```
+vung=17  dua sang dich=8
+[12] Bubble diem=0.70  495,1055  224x660     <- khong co vung chu nao ben trong
+```
+
+Detector tra ve hai loai vung: `bubble` (vo) va `text_bubble` (chu ben trong).
+Tren trang nay 8 cap di voi nhau dung dan, rieng `[12]` co vo ma khong co chu —
+va `GateFilter` bo thang moi vung `Bubble`. Ket qua: ca bong thoai bien mat khoi
+pipeline, khong ai doc, nguoi dung khong co dau hieu nao de biet.
+
+### Da thu mot cach, va do cho thay no khong dung duoc
+
+AD-5 sinh ra de chan dung viec nay: dua cho manga-ocr mot manh TRANH thi no van
+bia ra cau tieng Nhat troi chay (F2). Nen truoc khi cuu vo mo coi phai co cach
+biet trong do co chu that khong. Thu do do phang cua nen va ty le muc:
+
+```
+vo bong co chu : nen phang 64-88%   muc  9-23%
+vung tranh     : nen phang 34-65%   muc  8-30%
+```
+
+Hai khoang **chong nhau** — khong co nguong nao tach duoc. Bo.
+
+### Cach dung: tin chinh nhan cua detector
+
+Vung do da duoc gan nhan **`bubble`**, tuc chinh detector noi "day la bong
+thoai". Bong thoai gan nhu luon co chu. Chi can chan them bang diem tin cay
+(`>= 0.5`) va OCR phan trong ruot (thu vao 6% de khong doc trung vien).
+
+Can nhac hai phia cho ro: bo sot ca mot bong la **im lang mat han mot cau**,
+nguoi dung khong co cach nao biet. Cuu nham mot vo rong thi duoc mot bong dich
+vo nghia — thay ngay bang mat, va cham giu la hien lai nguyen ban.
+
+Do lai tren dung trang do: `17 vung, 9 co vo bong` (truoc la 8), `xong: ve 9
+bubble`. Dung them mot bong — dung cai bong nguoi dung khoanh — khong phinh them
+cai nao.
+
+⚠️ Nguong 0.5 dat tu **MOT trang**. Can do them nhieu trang truoc khi tin no.
+
+### Quy tac rut ra
+
+**Khi mot cong loc bo nham, dung tim cach do lai thu no da bo — hay hoi xem
+buoc TRUOC do da noi gi.** Toi mat mot vong di do do phang/muc de doan xem
+trong vo co chu khong, trong khi detector da tra loi san bang chinh cai nhan
+`bubble` cua no.
+
+---
+
 ## Còn nợ
 
 | # | Việc | Chặn gì | Trạng thái |

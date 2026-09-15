@@ -62,8 +62,24 @@ class GateFilter(
 
         val gated = job.bubbles.map { b ->
             when (b.kind) {
-                // Vo bong rong khong phai vung chu — khong OCR, khong ve de.
-                RegionKind.Bubble -> b.copy(state = BubbleState.Suspect)
+                // Vo bong CO vung chu ben trong thi khong phai vung chu — bo.
+                // Vo bong KHONG co vung chu nao ben trong la chuyen khac han:
+                // xem `rescueOrphanShell`.
+                RegionKind.Bubble -> {
+                    val hasText = texts.any {
+                        it.box.containedIn(b.box) >= cfg.containedInBubbleMin
+                    }
+                    if (!hasText && b.detectScore >= ORPHAN_MIN_SCORE) {
+                        b.copy(
+                            // OCR doc phan TRONG RUOT, tranh vien bong.
+                            box = b.box.inset(ORPHAN_INSET),
+                            shell = b.box,
+                            state = BubbleState.Accepted,
+                        )
+                    } else {
+                        b.copy(state = BubbleState.Suspect)
+                    }
+                }
 
                 RegionKind.TextBubble -> {
                     val fitting = shells.filter { b.box.containedIn(it) >= cfg.containedInBubbleMin }
@@ -99,6 +115,46 @@ class GateFilter(
          * Bong thoai thuc te rong hon vung chu khoang 1.3-2 lan.
          */
         const val MAX_SHELL_RATIO = 2.5
+
+        /**
+         * **Cuu vo bong mo coi.**
+         *
+         * Detector tra ve hai loai vung: `bubble` (vo) va `text_bubble` (chu ben
+         * trong). Binh thuong chung di theo cap. Nhung co luc no thay vo ma
+         * KHONG thay chu — va khi do ca bong thoai bi bo qua, khong ai doc.
+         *
+         * Nguoi dung chi thang vao mot bong nhu vay: "bong thoai nay nay, co
+         * dich dau". Do lai dung trang do: 17 vung, 9 vo, 8 chu — tat ca deu di
+         * theo cap TRU vo `[12]` (495,1055 224x660, diem 0.70), dung la bong
+         * ho khoanh (F49).
+         *
+         * ⚠️ AD-5 sinh ra de chan dung viec nay: dua cho manga-ocr mot manh
+         * TRANH thi no van bia ra cau tieng Nhat troi chay (F2). Nen phai hoi:
+         * co cach nao biet trong vo co chu that khong?
+         *
+         * Da thu do do phang cua nen va ty le muc, **khong dung duoc**:
+         * ```
+         *   vo bong co chu : nen phang 64-88%   muc  9-23%
+         *   vung tranh     : nen phang 34-65%   muc  8-30%
+         * ```
+         * Hai khoang chong nhau, khong co nguong nao tach duoc.
+         *
+         * Nen dung chinh phan doan cua detector: no da gan nhan **`bubble`**,
+         * tuc chinh no noi "day la bong thoai". Bong thoai gan nhu luon co chu.
+         * Con lai chi chan bang diem tin cay.
+         *
+         * Va can nhac hai phia: bo sot ca mot bong thoai la **im lang mat han
+         * mot cau**, nguoi dung khong co cach nao biet. Con neu cuu nham mot vo
+         * rong thi duoc mot bong dich vo nghia — thay ngay, va cham giu la hien
+         * lai nguyen ban.
+         *
+         * ⚠️ Nguong duoi day dat tu **MOT trang**. Can do them nhieu trang truoc
+         * khi tin no.
+         */
+        const val ORPHAN_MIN_SCORE = 0.5f
+
+        /** Thu vao de OCR khong doc trung vien bong. */
+        const val ORPHAN_INSET = 0.06
     }
 }
 

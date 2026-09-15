@@ -289,6 +289,7 @@ class CaptureService : Service() {
         }
 
         val bitmap = shot.handle as Bitmap
+        dumpCaptureForDiagnosis(bitmap)
         val tf = engines?.typeface ?: android.graphics.Typeface.SANS_SERIF
         // AD-12/AD-18 — lop phu mang `frameHash` cua anh sinh ra no, KHONG phai
         // `contentKey`. Anh da bi cat status bar roi nen cropTop = 0.
@@ -383,6 +384,28 @@ class CaptureService : Service() {
      *   adb shell touch /data/local/tmp/mangatrans-diag      # bat
      *   adb shell rm    /data/local/tmp/mangatrans-diag      # tat
      */
+    /**
+     * Luu ANH MA OCR THUC SU NHIN THAY. Cung co `/data/local/tmp/mangatrans-diag`
+     * nhu `dumpForDiagnosis` — xem ghi chu o do ve rieng tu.
+     *
+     * Can cai nay vi co mot nghi van khong the tra loi bang log: lan chup THU HAI
+     * tren cung mot trang co bi dinh chinh ban dich dang hien khong. Mat thuong
+     * khong thay duoc, log cung khong — chi co dung tam anh do moi noi duoc.
+     */
+    private fun dumpCaptureForDiagnosis(bmp: Bitmap) {
+        if (!java.io.File("/data/local/tmp/mangatrans-diag").exists()) return
+        val copy = runCatching { bmp.copy(Bitmap.Config.ARGB_8888, false) }.getOrNull() ?: return
+        scope.launch(Dispatchers.IO) {
+            runCatching {
+                val dir = java.io.File(filesDir, "diag").apply { mkdirs() }
+                java.io.File(dir, "shot-${System.currentTimeMillis()}.png").outputStream().use {
+                    copy.compress(Bitmap.CompressFormat.PNG, 100, it)
+                }
+                copy.recycle()
+            }
+        }
+    }
+
     private fun dumpForDiagnosis(job: app.mangatrans.domain.PageJob) {
         if (!java.io.File("/data/local/tmp/mangatrans-diag").exists()) return
         scope.launch(Dispatchers.IO) {
@@ -396,7 +419,7 @@ class CaptureService : Service() {
                         job.bubbles.forEach { b ->
                             appendLine(
                                 "[${b.id}] ${b.kind} diem=${"%.2f".format(b.detectScore)} " +
-                                    "${b.box.width}x${b.box.height} " +
+                                    "${b.box.x1},${b.box.y1} ${b.box.width}x${b.box.height} " +
                                     "vo=${if (b.shell != null) "co" else "khong"}"
                             )
                             appendLine("  JA: ${b.ja}")
