@@ -9,13 +9,16 @@ import app.mangatrans.ports.GlossaryKind
 import app.mangatrans.ports.Translator
 import com.google.ai.edge.litertlm.Backend
 import com.google.ai.edge.litertlm.Engine
+import com.google.ai.edge.litertlm.Conversation
 import com.google.ai.edge.litertlm.ConversationConfig
 import com.google.ai.edge.litertlm.EngineConfig
 import com.google.ai.edge.litertlm.Message
 import com.google.ai.edge.litertlm.MessageCallback
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.flowOn
@@ -57,10 +60,28 @@ class LiteRtLmTranslator(
 
         /** Tran do dai bai lam. Xem cho goi `createConversation`. */
         const val MAX_OUTPUT_TOKENS = 2048
+
+        /**
+         * Cho ben native xac nhan da dung sinh chu, toi da bao lau.
+         *
+         * Rong rai co chu y: het gio thi ta **khong dong** `Conversation` nua,
+         * ma ro ri no. Mot doi tuong ro ri re hon rat nhieu so voi mot SIGSEGV
+         * lam chet ca app giua luc nguoi dung dang doc.
+         */
+        const val CANCEL_WAIT_MS = 120_000L
     }
 
     private val lock = Mutex()
     private var engine: Engine? = null
+
+    /**
+     * Ben native co dang sinh chu khong.
+     *
+     * Chot an toan cuoi cung: neu `stopThenClose` het gio cho ma native van
+     * chay, thi dong `Engine` cung se no dung kieu nhu dong `Conversation`.
+     * Tha giu engine song them mot luc con hon lam chet ca app.
+     */
+    @Volatile private var nativeBusy = false
 
     override val isWarm: Boolean get() = engine != null
 
@@ -85,6 +106,10 @@ class LiteRtLmTranslator(
 
     override suspend fun release(): Unit = withContext(Dispatchers.Default) {
         lock.withLock {
+            if (nativeBusy) {
+                Log.w(TAG, "ben native con dang chay — khong nha engine luc nay")
+                return@withLock
+            }
             engine?.let { runCatching { it.close() } }
             engine = null
             Log.i(TAG, "da nha engine")
@@ -123,7 +148,7 @@ class LiteRtLmTranslator(
                         // dung het mot phan nho, va phan khong dung khong ton gi.
                         maxOutputToken = MAX_OUTPUT_TOKENS,
                     )
-                ).use { conv ->
+                ).let { conv ->
                     val done = CompletableDeferred<Unit>()
                     var seen = 0
                     val prompt = buildPrompt(page, glossary)
@@ -134,6 +159,7 @@ class LiteRtLmTranslator(
                     // khong the co bubble nao truoc khi prefill xong (AD-3).
                     Log.i(TAG, "prompt ${prompt.length} ky tu | ${page.translatable.size} bubble | ${glossary.size} muc glossary")
 
+                    nativeBusy = true
                     conv.sendMessageAsync(
                         prompt,
                         object : MessageCallback {
@@ -166,10 +192,53 @@ class LiteRtLmTranslator(
                             }
                         },
                     )
-                    done.await()
+
+                    // ⚠️ KHONG duoc dong `conv` khi ben native con dang sinh chu.
+                    //
+                    // Ban truoc dung `use { }`. Khi nguoi dung lat trang, bo canh
+                    // goi `running.cancel()` -> `done.await()` nem
+                    // `CancellationException` -> `use` dong `conv` NGAY, trong khi
+                    // luong native van dang chay. No cham vao vung vua giai phong:
+                    //
+                    // ```
+                    // 21:01:26  man hinh doi — dung dich, go lop phu
+                    // 21:01:44  Fatal signal 11 (SIGSEGV) ... liblitertlm_jni.so
+                    // 21:01:46  Process app.mangatrans has died
+                    // ```
+                    //
+                    // 18 giay sau cu huy — dung bang thoi gian sinh not phan con
+                    // lai. Thu vien co san `cancelProcess()` (doc bang `javap`,
+                    // tai lieu khong nhac); phai goi no VA cho callback bao xong
+                    // roi moi duoc dong.
+                    try {
+                        done.await()
+                    } finally {
+                        withContext(NonCancellable) { stopThenClose(conv, done) }
+                    }
                 }
             }
         }.flowOn(Dispatchers.Default)
+
+    /**
+     * Dung sinh chu roi cho ben native xac nhan xong, sau do moi dong.
+     *
+     * Neu qua [CANCEL_WAIT_MS] ma van chua xong thi **co y KHONG dong** — ro ri
+     * mot `Conversation` con hon mot SIGSEGV lam chet ca app va mat ban dich
+     * nguoi dung dang doc. Ghi lai de con biet chuyen do co xay ra khong.
+     */
+    private suspend fun stopThenClose(conv: Conversation, done: CompletableDeferred<Unit>) {
+        val t0 = System.currentTimeMillis()
+        runCatching { conv.cancelProcess() }
+        val finished = withTimeoutOrNull(CANCEL_WAIT_MS) { done.await() } != null
+        val ms = System.currentTimeMillis() - t0
+        if (finished) {
+            nativeBusy = false
+            if (ms > 50) Log.i(TAG, "dung sinh chu sau $ms ms roi moi dong")
+            runCatching { conv.close() }
+        } else {
+            Log.w(TAG, "ben native chua dung sau $ms ms — KHONG dong de tranh SIGSEGV")
+        }
+    }
 
     /**
      * Prompt v1 — ban da do o Phase 0 (69% tren bo truyen kho nhat).

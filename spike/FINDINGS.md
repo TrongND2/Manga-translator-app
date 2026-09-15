@@ -3016,6 +3016,107 @@ khong.** Activity keo theo ca vong doi, task stack va — o day — mot he thong
 canh man hinh tuong nguoi dung da bo di.
 ---
 
+## F69 — SIGSEGV: dong `Conversation` trong khi ben native con dang sinh chu
+
+Nguoi dung: *"tôi đang dùng app thì tự nhiên app nó crash"*.
+
+### Khong phai bi giet vi thieu RAM
+
+Log day `lmkd` nen de tuong nham. Nhung co **tombstone native**:
+
+```
+21:01:44.218  F/libc   Fatal signal 11 (SIGSEGV), code 1 (SEGV_MAPERR),
+                       fault addr 0x0 in tid 27483 (Thread-1086)
+21:01:45.843  I/BootReceiver  Copying /data/tombstones/tombstone_15 to DropBox
+21:01:46.177  I/ActivityManager  Process app.mangatrans (pid 25519) has died
+```
+
+`Cause: null pointer dereference`, va ca backtrace nam trong
+**`liblitertlm_jni.so`**. Do la crash o tang C++, khong phai `lmkd`.
+
+### Moc thoi gian chi thang vao thu pham
+
+```
+21:01:26.328  Translating 0/7        <- dot 2 vua bat dau
+21:01:26.577  man hinh doi — dung dich, go lop phu
+21:01:44.218  SIGSEGV
+```
+
+**18 giay sau cu huy** — dung bang thoi gian sinh not phan con lai.
+
+### Nguyen nhan
+
+```kotlin
+).use { conv ->
+    conv.sendMessageAsync(prompt, callback)
+    done.await()          // <- huy thi nem CancellationException
+}                          // <- `use` dong `conv` NGAY
+```
+
+Bo canh trang goi `running.cancel()`. `done.await()` nem
+`CancellationException`, `use` dong `Conversation` **ngay lap tuc** — trong khi
+luong native (`Thread-1086`) van dang sinh token va van con tro toi doi tuong
+vua bi giai phong.
+
+`use { }` la dung cho tai nguyen Java thuan. No **sai** voi mot handle bao boc
+mot tien trinh native con dang chay: block thoat khong co nghia la viec ben kia
+da xong.
+
+### Cach chua nam san trong thu vien, tai lieu khong nhac
+
+`javap` tren AAR:
+
+```
+public final void cancelProcess();
+public final boolean isAlive();
+```
+
+Ma cu **khong he goi `cancelProcess()`**. Chua:
+
+```kotlin
+try { done.await() }
+finally { withContext(NonCancellable) { stopThenClose(conv, done) } }
+```
+
+`stopThenClose` goi `cancelProcess()`, **cho callback bao xong**, roi moi
+`close()`. Het `CANCEL_WAIT_MS` ma chua xong thi **co y khong dong** — ro ri mot
+`Conversation` re hon rat nhieu so voi mot SIGSEGV giet ca app giua luc nguoi
+dung dang doc.
+
+Kem mot chot nua: `release()` (dong ca `Engine`) bo qua khi `nativeBusy` — dong
+Engine duoi chan mot tien trinh native dang chay cung no y het.
+
+### Do lai tren may, dung duong da crash
+
+```
+21:08:21.998  man hinh doi (khac 1.08) — dung dich, go lop phu
+21:08:22.115  loi khi sinh: CancellationException: Task cancelled
+              at Conversation$JniMessageCallbackImpl.onError(Conversation.kt:654)
+21:08:22.118  dung sinh chu sau 113 ms roi moi dong
+```
+
+**113 ms** de ben native dung han. Truoc do ta dong ngay va no no sau 18 giay.
+App con song, `logcat -b crash` khong con SIGSEGV nao. Duong dich tron trang
+van chay binh thuong: 10/10 bong, khong cham them.
+
+### Con ngo, chua giai thich duoc
+
+Trong log crash cua nguoi dung co `man hinh doi (khac 0.14)` ngay 0,25 giay sau
+khi dot 2 bat dau. 0.14 cao gap 37 lan san nhieu do duoc (0.0038) nhung thap xa
+mot cu lat trang that (~1.0). Co the nguoi dung lat that, cung co the la mot
+hieu ung o ranh gioi dot ma toi chua do duoc. **Chua ket luan.**
+
+### Quy tac rut ra
+
+**`use { }` chi dung cho tai nguyen ma "het block" nghia la "het viec".** Voi
+mot handle bao boc tien trinh native chay bat dong bo, thoat block va ben kia
+xong la hai chuyen khac nhau — va dong som thi khong nem exception, no lam chet
+ca tien trinh.
+
+**Va lai mot lan nua: cau tra loi nam trong bytecode.** `cancelProcess()` co san
+tu dau; tai lieu khong nhac toi no. Day la lan thu nam trong du an.
+---
+
 ## Còn nợ
 
 | # | Việc | Chặn gì | Trạng thái |
