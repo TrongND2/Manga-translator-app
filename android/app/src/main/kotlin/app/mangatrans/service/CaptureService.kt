@@ -333,7 +333,7 @@ class CaptureService : Service() {
                     // AD-9 — ca trang tro ve nguyen ban.
                     is PageEvent.PageRejected -> { ov.clearPage(); drawn = 0 }
 
-                    is PageEvent.Done -> Unit
+                    is PageEvent.Done -> dumpForDiagnosis(ev.job)
 
                     // Hong ca luot — khac han ket qua tung bubble. Noi ro ly do
                     // bang tieng nguoi (Story 3.8), khong hien ma loi.
@@ -368,6 +368,46 @@ class CaptureService : Service() {
             if (found == 0) "Không tìm thấy bóng thoại nào trên màn hình"
             else "Dịch không trọn trang này nên giữ nguyên bản gốc. Chạm icon để thử lại."
         )
+    }
+
+    /**
+     * Ghi cap "chu Nhat doc duoc -> ban dich" ra FILE RIENG cua app, de tach
+     * duoc hai nguyen nhan lam ban dich sai: **doc sai (OCR)** va **dich sai
+     * (LLM)**. Sua ben nay ma that ra hong ben kia thi cong coc.
+     *
+     * ⚠️ Day la noi dung MAN HINH RIENG cua nguoi dung, nen:
+     *   - KHONG BAO GIO ghi ra logcat — do la log dung chung;
+     *   - chi ghi khi co co `/data/local/tmp/mangatrans-diag`, ma file do chi
+     *     tao duoc bang `adb`. Nguoi dung binh thuong khong bat nham duoc.
+     *
+     *   adb shell touch /data/local/tmp/mangatrans-diag      # bat
+     *   adb shell rm    /data/local/tmp/mangatrans-diag      # tat
+     */
+    private fun dumpForDiagnosis(job: app.mangatrans.domain.PageJob) {
+        if (!java.io.File("/data/local/tmp/mangatrans-diag").exists()) return
+        scope.launch(Dispatchers.IO) {
+            runCatching {
+                val dir = java.io.File(filesDir, "diag").apply { mkdirs() }
+                java.io.File(dir, "page-${System.currentTimeMillis()}.txt").writeText(
+                    buildString {
+                        appendLine("contentKey=${job.contentKey}")
+                        appendLine("vung=${job.bubbles.size} dua sang dich=${job.translatable.size}")
+                        appendLine()
+                        job.bubbles.forEach { b ->
+                            appendLine(
+                                "[${b.id}] ${b.kind} diem=${"%.2f".format(b.detectScore)} " +
+                                    "${b.box.width}x${b.box.height} " +
+                                    "vo=${if (b.shell != null) "co" else "khong"}"
+                            )
+                            appendLine("  JA: ${b.ja}")
+                            appendLine("  VI: ${b.vi ?: "(giu nguyen)"}")
+                            appendLine("  speaker: ${b.speaker ?: "-"}")
+                        }
+                    }
+                )
+                Log.i(TAG, "da ghi ho so chan doan")
+            }
+        }
     }
 
     /**

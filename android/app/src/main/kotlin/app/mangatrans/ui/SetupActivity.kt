@@ -10,6 +10,9 @@ import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.ScrollView
 import android.widget.TextView
+import android.widget.Toast
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
@@ -62,6 +65,10 @@ class SetupActivity : AppCompatActivity() {
             visibility = android.view.View.GONE
             setOnClickListener { confirmDelete() }
         }
+        val redoBtn = Button(this).apply {
+            text = "Dịch lại các trang đã dịch"
+            setOnClickListener { confirmClearPageCache() }
+        }
 
         setContentView(ScrollView(this).apply {
             addView(LinearLayout(this@SetupActivity).apply {
@@ -70,7 +77,7 @@ class SetupActivity : AppCompatActivity() {
                 gravity = Gravity.FILL_HORIZONTAL
                 addView(explainer())
                 addView(status); addView(bar); addView(detail)
-                addView(actionBtn); addView(deleteBtn)
+                addView(actionBtn); addView(deleteBtn); addView(redoBtn)
             })
         })
 
@@ -331,6 +338,45 @@ class SetupActivity : AppCompatActivity() {
     }
 
     // ---------- Story 4.5: xoa goi ----------
+
+    /**
+     * Xoa bo nho dem trang da dich.
+     *
+     * Vi sao can nut nay: khoa cache tinh tu ANH va vi tri bong thoai, khong
+     * tinh tu tu dien. Nen sua tu dien xong thi trang **da dich roi** van tra
+     * lai ban cu mai mai — nguoi dung sua ma khong thay gi doi, va khong co
+     * cach nao ep dich lai.
+     *
+     * Chi xoa ket qua dich. Goi mo hinh va tu dien rieng deu giu nguyen.
+     */
+    private fun confirmClearPageCache() {
+        val dir = java.io.File(cacheDir, "pages")
+        val n = dir.listFiles()?.size ?: 0
+        if (n == 0) {
+            Toast.makeText(this, "Chưa có trang nào được lưu.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Dịch lại các trang đã dịch?")
+            .setMessage(
+                "App đang nhớ kết quả của $n trang. Xoá đi thì lần sau mở lại " +
+                    "những trang đó, app sẽ dịch mới — và áp dụng từ điển riêng " +
+                    "bạn vừa sửa.\n\nMỗi trang dịch mới mất khoảng 1–2 phút.\n\n" +
+                    "Gói mô hình và từ điển riêng KHÔNG bị xoá."
+            )
+            .setNegativeButton("Để sau", null)
+            .setPositiveButton("Xoá") { _, _ ->
+                lifecycleScope.launch {
+                    withContext(Dispatchers.IO) { dir.deleteRecursively() }
+                    Toast.makeText(
+                        this@SetupActivity,
+                        "Đã xoá $n trang. Mở lại trang nào thì trang đó dịch mới.",
+                        Toast.LENGTH_LONG,
+                    ).show()
+                }
+            }
+            .show()
+    }
 
     private fun confirmDelete() {
         lifecycleScope.launch { askDelete() }

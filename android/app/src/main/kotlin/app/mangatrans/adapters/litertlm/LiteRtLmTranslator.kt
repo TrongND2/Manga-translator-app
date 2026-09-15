@@ -227,9 +227,18 @@ Cùng một trang có thể có nhiều cặp xưng hô khác nhau. Giữ nhất
 DỊCH HẾT:
 KHÔNG được để sót bất kỳ chữ Nhật nào trong bản dịch — kể cả tên riêng, chữ Hán lẻ, hay từ tượng thanh. Tên riêng thì phiên âm La-tinh (瑠璃丸 → Rurimaru). Tượng thanh thì dịch sang tượng thanh tiếng Việt.
 
+GIỮ NGUYÊN NHỊP NÓI — đo trên máy thấy đây là chỗ sai nhiều nhất:
+- Nói lắp thì dịch ra nói lắp: 「そ、それは」 → "C-cái đó là", 「な、なんで」 → "S-sao lại". ĐỪNG làm câu phẳng lại.
+- Dấu 「…」 nghĩa là câu BỎ LỬNG: giữ "..." ở đúng chỗ đó, ĐỪNG viết nốt phần người ta chưa nói.
+- Bubble chỉ có một mẩu câu (ví dụ 「ませぬぅ!」 — không có động từ) thì dịch đúng mẩu đó, ĐỪNG bịa ra cả câu.
+
+XƯNG HÔ PHẢI NHẤT QUÁN VỚI GIỌNG:
+Nhân vật dùng 小生 / ござる / ませぬ là giọng cổ trang, khiêm nhường → "tiểu sinh", "tại hạ", "kẻ hèn này". Đã chọn giọng đó cho một người thì mọi bubble của người đó phải cùng giọng — không được lúc "tiểu sinh" lúc "em".
+
 Còn lại:
 - Tra glossary trước khi đoán nghĩa thành ngữ.
 - Bỏ hậu tố -san/-kun/-chan, chuyển sắc thái vào xưng hô.
+- Danh từ thường thì DỊCH, chỉ tên riêng mới phiên âm: 赤ちゃん → "em bé", KHÔNG phải "aka-chan".
 - Ngắn gọn cho vừa bong bóng. Không thêm chú thích.
 
 Trả về DUY NHẤT một khối JSON."""

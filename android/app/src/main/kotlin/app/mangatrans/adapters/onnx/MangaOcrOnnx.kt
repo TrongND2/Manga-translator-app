@@ -187,8 +187,21 @@ fun normalizeJa(s: String): String {
     for (ch in nfkc) {
         // Gop moi day gach ngang lien tiep thanh mot, tuong tu voi dau cham.
         val c = if (ch in "ーー-—―‐") '-' else ch
-        if ((c == '-' || c == '.') && c == prev) continue
+        if (c == '-' && c == prev) continue
         sb.append(c); prev = c
     }
-    return sb.toString().trim()
+    // ⚠️ Day dau cham PHAI gop thanh dau ba cham, KHONG phai mot dau cham.
+    //
+    // NFKC bien `…` (U+2026) thanh ba dau cham. Ban truoc gop moi day dau
+    // cham lien tiep thanh MOT — tuc `…` bi bien thanh `.`, va cau bo lung
+    // thanh cau tron ven **truoc khi mo hinh kip nhin thay**.
+    //
+    // Do duoc tren may, doi chieu tung bong voi trang goc:
+    //   tren trang   `な、なんで わたしとその…`
+    //   mo hinh thay `な、なんでわたしとその.`
+    //   dich ra      "Sao lai la toi va anh?"   <- tu bia ra phan con thieu
+    //
+    // Bo lung la tin hieu quan trong nhat cua thoai manga: nhan vat ngap ngung,
+    // noi hut, bi cat loi. Xoa no di thi mo hinh buoc phai doan (F46).
+    return sb.toString().replace(Regex("\\.{2,}"), "…").trim()
 }

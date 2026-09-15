@@ -1724,6 +1724,71 @@ TIM DUOC, khong phai so bong VE DUOC.
 
 ---
 
+## F46 — Dau ba cham bi bop thanh mot dau cham, va mo hinh phai bia phan con thieu
+
+Nguoi dung: *"dich van chua dung lam"*. Chat luong kem co HAI nguon doi hai cach
+sua nguoc nhau — **doc sai (OCR)** hay **dich sai (LLM)** — nen viec dau tien la
+do xem cai nao hong, chu khong phai sua lien.
+
+Cach do: ghi cap `JA -> VI` ra **file rieng trong bo nho app**, bat bang mot co
+`/data/local/tmp/mangatrans-diag` ma chi `adb` tao duoc. **Khong bao gio ghi ra
+logcat** — do la noi dung man hinh rieng cua nguoi dung.
+
+### Ket qua bat ngo: OCR khong phai thu phai
+
+Doi chieu tung bong voi trang goc thi OCR doc **dung 6/6**. Gia dinh cua chinh
+toi ("chac do anh chup man hinh nho nen OCR doc kem") bi bac ngay.
+
+Nhung co mot chi tiet le ra: tren trang la `…`, ma mo hinh nhan duoc `.`
+
+### Nguyen nhan
+
+```kotlin
+val nfkc = Normalizer.normalize(s, Normalizer.Form.NFKC)
+...
+if ((c == '-' || c == '.') && c == prev) continue    // gop day dau cham
+```
+
+NFKC bien `…` (U+2026) thanh **ba dau cham**. Dong gop ngay duoi bop ba dau cham
+thanh **mot**. Tuc cau bo lung thanh cau tron ven, truoc khi mo hinh kip nhin.
+
+Bo lung la tin hieu quan trong nhat cua thoai manga — nhan vat ngap ngung, noi
+hut, bi cat loi. Mat no thi mo hinh **buoc phai doan**:
+
+| tren trang | mo hinh thay | dich ra |
+|---|---|---|
+| `な、なんで わたしとその…` | `な、なんでわたしとその.` | "Sao lai la toi va **anh**?" |
+
+`その` la "cai do", cau bo lung. Mo hinh tu viet not thanh mot cau hoi tron ven
+voi mot nguoi khong he co trong nguyen ban.
+
+### Sua, va do lai tren dung trang do
+
+Gop day dau cham thanh `…` chu khong phai `.`. Cong voi ba dong them vao prompt
+(giu noi lap, giu bo lung, dung bia them cho mau cau cut).
+
+| chu Nhat | truoc | sau |
+|---|---|---|
+| `そ、それは…!` | "Cai do la!" | **"C-cai do la...!"** |
+| `な、なんでわたしとその…` | "Sao lai la toi va anh?" | **"Sao lai toi va..."** |
+| `わけわかんない…` | "Khong hieu gi ca." | **"Khong hieu..."** |
+| `ませぬぅ!` | "**Em** khong the nao!" | **"Khong the nao!"** |
+| `すべて小生の不手際でござります…!` | "Tat ca la do so suat cua tieu sinh..." | giu nguyen — von da dung |
+
+Bon tren sau tot len, khong cai nao te di.
+
+### Quy tac rut ra
+
+**Mot buoc "chuan hoa" la mot buoc LAM MAT THONG TIN, va no khong bao giu noi
+gi da mat.** Dong gop day dau cham viet ra de don rac OCR, nhung no khong phan
+biet duoc rac voi dau cau — ma dau cau o day lai la thu mang nhieu nghia nhat.
+
+**Va: do truoc khi sua.** Toi dinh sua prompt vi tuong loi o mo hinh. Neu lam
+the thi da sua nham tang: nut that nam o mot dong chuan hoa chuoi, cach cho toi
+dinh sua ba lop.
+
+---
+
 ## Còn nợ
 
 | # | Việc | Chặn gì | Trạng thái |
