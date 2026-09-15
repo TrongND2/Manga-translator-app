@@ -74,20 +74,90 @@ class MangaOcrOnnx(
         val y2 = (box.y2 + PAD_PX).coerceIn(0, src.height)
         if (x2 - x1 < 2 || y2 - y1 < 2) return@withContext ""
 
-        val crop = Bitmap.createBitmap(src, x1, y1, x2 - x1, y2 - y1)
-        val scaled = scaleForOcr(crop, IMG, IMG)
-        if (crop !== src && crop !== scaled) crop.recycle()
+        val colour = Bitmap.createBitmap(src, x1, y1, x2 - x1, y2 - y1)
+        // manga_ocr/ocr.py: `img.convert("L").convert("RGB")` — mo hinh duoc
+        // huan luyen tren anh XAM. Trang mau khong sao, nhung khong co ly do gi
+        // de dua mau vao mot mo hinh chua bao gio thay mau.
+        val crop = toGrayscale(colour)
+        if (colour !== src) colour.recycle()
 
-        val hidden = try {
-            encode(scaled)
-        } finally {
-            scaled.recycle()
-        }
+        // ⚠️ Doc HAI LAN roi lay ban mo hinh TU TIN hon. Xem `readOnce`.
+        val a = readOnce(scaleForOcr(crop, IMG, IMG))
+        val b = readOnce(scaleForOcr(padToSquare(crop), IMG, IMG))
+        if (crop !== src) crop.recycle()
 
-        val text = decode(hidden)
         // Quy uoc spine: CHUAN HOA NFKC ngay tai day, truoc moi so sanh chuoi.
         // Khong lam thi khoa cache vo va cong AD-6 bao dong gia (F24).
-        normalizeJa(text)
+        normalizeJa(if (b.second > a.second) b.first else a.first)
+    }
+
+    /** @return chu doc duoc va do tu tin trung binh moi token (log-prob). */
+    private fun readOnce(scaled: Bitmap): Pair<String, Double> {
+        val hidden = try { encode(scaled) } finally { scaled.recycle() }
+        return decode(hidden)
+    }
+
+    /**
+     * Bo khung anh cho VUONG bang mau nen cua chinh no, giu nguyen ty le.
+     *
+     * Vi sao can: `ViTImageProcessor` cua manga-ocr resize thang ve 224x224,
+     * tuc **keo gian**. Hop chu bong thoai thuong cao gap 4 lan chieu ngang, nen
+     * bi keo gian rat manh. Phan lon truong hop van doc dung — day dung la thu
+     * mo hinh duoc huan luyen tren — nhung chu to, dam, cach dieu thi hong.
+     *
+     * Do duoc tren dung bong nguoi dung chi:
+     * ```
+     *   keo gian    -> ただの本名はじゃない…    SAI  (本名 = "ten that")
+     *   chen vuong  -> ただの変態じゃない…      DUNG (変態 = "bien thai")
+     * ```
+     * Ban dich vi the ra "Khong phai ten that dau" — sai han nghia, ma nhin ban
+     * dich thi khong co cach nao doan duoc no bat nguon tu day (F53).
+     *
+     * ⚠️ Nhung chen vuong KHONG phai lúc nao cung tot hon: bong ngan it chu thi
+     * chen vuong lam chu nho lai va mo hinh doc thua ky tu — `キャッ!` thanh
+     * `ハキャッし`. Nen khong the chon cung mot cach cho moi bong.
+     */
+    private fun padToSquare(src: Bitmap): Bitmap {
+        val side = maxOf(src.width, src.height)
+        if (side == src.width && side == src.height) return src
+        val out = Bitmap.createBitmap(side, side, Bitmap.Config.ARGB_8888)
+        android.graphics.Canvas(out).apply {
+            drawColor(borderColour(src))
+            drawBitmap(src, ((side - src.width) / 2).toFloat(), ((side - src.height) / 2).toFloat(), null)
+        }
+        return out
+    }
+
+    /** Mau hay gap nhat tren vien anh — coi nhu mau nen. */
+    private fun borderColour(b: Bitmap): Int {
+        val counts = HashMap<Int, Int>()
+        val stepX = maxOf(1, b.width / 16)
+        val stepY = maxOf(1, b.height / 16)
+        var x = 0
+        while (x < b.width) {
+            counts.merge(b.getPixel(x, 0), 1, Int::plus)
+            counts.merge(b.getPixel(x, b.height - 1), 1, Int::plus)
+            x += stepX
+        }
+        var y = 0
+        while (y < b.height) {
+            counts.merge(b.getPixel(0, y), 1, Int::plus)
+            counts.merge(b.getPixel(b.width - 1, y), 1, Int::plus)
+            y += stepY
+        }
+        return counts.maxByOrNull { it.value }?.key ?: android.graphics.Color.WHITE
+    }
+
+    /** Doi sang xam, giu 3 kenh — dung nhu `convert("L").convert("RGB")`. */
+    private fun toGrayscale(src: Bitmap): Bitmap {
+        val out = Bitmap.createBitmap(src.width, src.height, Bitmap.Config.ARGB_8888)
+        val paint = android.graphics.Paint().apply {
+            colorFilter = android.graphics.ColorMatrixColorFilter(
+                android.graphics.ColorMatrix().apply { setSaturation(0f) }
+            )
+        }
+        android.graphics.Canvas(out).drawBitmap(src, 0f, 0f, paint)
+        return out
     }
 
     /**
@@ -152,8 +222,16 @@ class MangaOcrOnnx(
     }
 
     /** Vong lap sinh token: greedy, dung khi gap SEP. */
-    private fun decode(hidden: Array<Array<FloatArray>>): String {
+    /**
+     * Giai ma tham lam, dong thoi do **do tu tin** = log-prob trung binh moi
+     * token. Day la thu duy nhat manga-ocr cho biet ve chat luong mot lan doc —
+     * no khong tra diem tin cay nao khac — va no du de chon giua hai cach cat
+     * anh (xem `padToSquare`).
+     */
+    private fun decode(hidden: Array<Array<FloatArray>>): Pair<String, Double> {
         val ids = ArrayList<Long>(MAX_TOKENS).apply { add(clsId.toLong()) }
+        var logProb = 0.0
+        var steps = 0
         val seqLen = hidden[0].size
         val hiddenDim = hidden[0][0].size
 
@@ -186,7 +264,12 @@ class MangaOcrOnnx(
                             val last = logits[0].last()
                             var best = 0; var bestV = Float.NEGATIVE_INFINITY
                             for (i in last.indices) if (last[i] > bestV) { bestV = last[i]; best = i }
-                            if (best == sepId) return buildText(ids)
+                            // log-softmax cua token vua chon, tinh on dinh so hoc.
+                            var sum = 0.0
+                            for (v in last) sum += kotlin.math.exp((v - bestV).toDouble())
+                            logProb += -kotlin.math.ln(sum)
+                            steps++
+                            if (best == sepId) return buildText(ids) to (logProb / steps)
                             ids.add(best.toLong())
                         }
                     } finally {
@@ -195,7 +278,7 @@ class MangaOcrOnnx(
                 }
             }
         }
-        return buildText(ids)
+        return buildText(ids) to (if (steps == 0) -99.0 else logProb / steps)
     }
 
     private fun buildText(ids: List<Long>): String = ids

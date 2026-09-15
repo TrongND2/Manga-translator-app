@@ -2066,6 +2066,100 @@ khong, chu khong chi do cau minh dinh sua.**
 
 ---
 
+## F53 — Doc anh HAI LAN roi lay ban mo hinh tu tin hon
+
+Nguoi dung chi lai dung bong cu: *"sao van dich la 'Khong phai ten that dau'"*.
+Lan truoc toi da giai thich do la OCR doc nham `変態` (bien thai) thanh `本名`
+(ten that) va goi do la gioi han cua mo hinh. **Giai thich khong phai la sua.**
+
+### Doc ma nguon that cua manga-ocr
+
+`spike/.venv` co san goi `manga_ocr`. `ocr.py`:
+
+```python
+img = img.convert("L").convert("RGB")          # <- app CHUA lam
+pixel_values = self.processor(img, ...)        # ViTImageProcessor -> keo gian 224x224
+```
+
+Hai dieu: (1) mo hinh an anh **xam**, app dang dua anh mau vao; (2) `ViTImage
+Processor` resize thang ve 224x224, tuc **keo gian moi la dung chuan** — chen
+vien cho vuong la sai chuan.
+
+### Nhung "dung chuan" lai doc sai bong nay
+
+```
+keo gian (dung chuan)  -> ただの本名はじゃない…    SAI
+chen vuong (sai chuan) -> ただの変態じゃない…      DUNG
+```
+
+Va dieu nguoc lai cung dung — bong ngan thi chen vuong lai hong:
+
+```
+keo gian    -> キャッ!          DUNG
+chen vuong  -> ハキャッし       SAI
+```
+
+Hop chu hai bong deu ty le ~1:4, nen **khong the chon theo ty le**. Thu do do
+phang, do muc, mau sac — khong cai nao tach duoc.
+
+### Cach chon co nguyen tac: hoi chinh mo hinh
+
+manga-ocr khong tra diem tin cay, nhung bo giai ma la **tham lam tren logits**,
+nen tinh duoc log-prob trung binh moi token. Do ca hai cach cat roi lay ban tu
+tin hon:
+
+```
+                          do tu tin    ket qua
+キャッ!        keo gian    -0.000      キャッ!            <- chon
+              chen vuong  -0.262      ハキャッし
+ただの変態…    keo gian    -0.244      ただの本名は…
+              chen vuong  -0.084      ただの変態…        <- chon
+柔らかい…      keo gian    -0.036      dung               <- chon
+              chen vuong  -0.110      dung
+小生変態…      keo gian    -0.001      dung               <- chon
+              chen vuong  -0.019      thua mot dau "!"
+```
+
+**5/5 bong chon dung ban tot hon.** Cai len may, do lai: `ただの変態じゃない`
+doc dung, ban dich tu *"Khong phai ten that dau"* thanh *"Khong chi la mot bien
+thai"*.
+
+Gia: OCR chay hai lan moi bong. Buoc doc chu tu ~9 s len ~18 s tren trang 9
+bong — khoang 10% tong thoi gian mot trang.
+
+### Quy tac rut ra
+
+**"Mo hinh chi doc duoc the thoi" la ket luan, va ket luan thi can bang chung.**
+Toi da noi cau do khi moi thu mot cach cat anh. Thu cach thu hai thi no doc
+dung ngay.
+
+**Va: khi hai cau hinh deu dung mot nua, dung chon mot cai — chay ca hai roi
+hoi mo hinh cai nao chac hon.** Thong tin do co san trong logits, chi la khong
+ai lay ra.
+
+---
+
+## F54 — Rut prompt tu 3.027 xuong 1.110 ky tu, va do la viec BAT BUOC chu khong phai don dep
+
+F52 da canh bao prompt cham tran. F53 lam OCR doc dung hon — de bai doi mot chut
+— va ca trang **hong ngay**: `xong: ve 0 bubble`. Cung trang do, cung prompt do,
+truoc khi OCR tot len thi van 9/9.
+
+Do la dinh nghia cua he thong chay sat mep: **mot cai sua lam moi thu tot len o
+mot tang lai lam tang khac vo**.
+
+Rut prompt con 1.110 ky tu (giu nguyen moi luat da do duoc la co ich: xung ho,
+giu nhip noi, dung muc do, trat tu tieng Viet — chi viet chat lai), va cung
+trang do quay lai **9/9 bong**, chat luong khong kem di.
+
+### Quy tac rut ra
+
+**Ngan sach prompt la mot tai nguyen chia se giua cac tang.** Tang OCR tot len
+cung "tieu" vao no, vi de bai doi la duong sinh chu doi. Khong the coi prompt la
+cho de tha vao moi thu minh nghi ra.
+
+---
+
 ## Còn nợ
 
 | # | Việc | Chặn gì | Trạng thái |

@@ -214,39 +214,17 @@ Dịch đủ $n bubble. Trả về JSON, các trường theo ĐÚNG thứ tự n
     }
 }
 
-private const val SYSTEM = """Dịch thoại manga Nhật sang tiếng Việt: SÁT NGHĨA, ĐÚNG NGỮ PHÁP, đọc lên nghe như người Việt nói.
+private const val SYSTEM = """Dịch thoại manga Nhật → Việt: sát nghĩa, đúng ngữ pháp, đọc lên như người Việt nói. Trả về DUY NHẤT một khối JSON.
 
-DỊCH ĐÚNG NHƯ NGUYÊN BẢN, KHÔNG LÀM NHẸ ĐI:
-Truyện người lớn thì thoại tục, thô, trần trụi — dịch đúng mức độ đó. Không nói tránh, không thay bằng từ lịch sự hơn, không bỏ bớt. Nguyên bản thô tới đâu thì bản dịch thô tới đó; nguyên bản nhã thì bản dịch nhã. Sai mức độ cũng là dịch sai.
+XƯNG HÔ (quan trọng nhất):
+Suy quan hệ người nói–người nghe từ ngữ cảnh CẢ TRANG, chọn xưng hô từng cặp, giữ nhất quán. ĐỪNG mặc định "mày/tao".
+lịch sự/xa lạ → tôi-anh, tôi-ông, em-anh · thân → tớ-cậu · suồng sã → tao-mày · cổ trang bề trên → ta-ngươi
+Ai dùng 小生 / ござる / ませぬ là giọng cổ trang khiêm nhường → "tiểu sinh", "tại hạ"; đã chọn giọng nào thì mọi câu của người đó giữ giọng đó.
 
-XƯNG HÔ — quan trọng nhất:
-Suy ra quan hệ giữa người nói và người nghe từ ngữ cảnh CẢ TRANG, rồi chọn xưng hô cho đúng từng cặp. ĐỪNG mặc định "mày/tao".
-- lịch sự, xa lạ, kính trọng → tôi/anh · tôi/ông · em/anh
-- thân mật, bạn bè → tớ/cậu · mình/bạn
-- suồng sã, đùa cợt, thân lâu năm → tao/mày
-- bề trên nói với bề dưới → ta/ngươi (truyện cổ trang)
-Cùng một trang có thể có nhiều cặp xưng hô khác nhau. Giữ nhất quán cho từng cặp.
+GIỮ NHỊP NÓI:
+Nói lắp → dịch ra nói lắp (「そ、それは」 → "C-cái đó là"). Dấu 「…」 là câu bỏ lửng: giữ "..." và ĐỪNG viết nốt. Bubble chỉ có mẩu câu cụt thì dịch đúng mẩu đó, ĐỪNG bịa thêm.
 
-DỊCH HẾT:
-KHÔNG được để sót bất kỳ chữ Nhật nào trong bản dịch — kể cả tên riêng, chữ Hán lẻ, hay từ tượng thanh. Tên riêng thì phiên âm La-tinh (瑠璃丸 → Rurimaru). Tượng thanh thì dịch sang tượng thanh tiếng Việt.
+ĐÚNG MỨC ĐỘ:
+Nguyên bản thô tục tới đâu thì dịch thô tới đó — không nói tránh, không bỏ bớt. Nguyên bản nhã thì dịch nhã.
 
-GIỮ NGUYÊN NHỊP NÓI — đo trên máy thấy đây là chỗ sai nhiều nhất:
-- Nói lắp thì dịch ra nói lắp: 「そ、それは」 → "C-cái đó là", 「な、なんで」 → "S-sao lại". ĐỪNG làm câu phẳng lại.
-- Dấu 「…」 nghĩa là câu BỎ LỬNG: giữ "..." ở đúng chỗ đó, ĐỪNG viết nốt phần người ta chưa nói.
-- Bubble chỉ có một mẩu câu (ví dụ 「ませぬぅ!」 — không có động từ) thì dịch đúng mẩu đó, ĐỪNG bịa ra cả câu.
-
-XƯNG HÔ PHẢI NHẤT QUÁN VỚI GIỌNG:
-Nhân vật dùng 小生 / ござる / ませぬ là giọng cổ trang, khiêm nhường → "tiểu sinh", "tại hạ", "kẻ hèn này". Đã chọn giọng đó cho một người thì mọi bubble của người đó phải cùng giọng — không được lúc "tiểu sinh" lúc "em".
-
-VIẾT NHƯ NGƯỜI VIỆT NÓI, ĐỪNG BÁM TRẬT TỰ CHỮ NHẬT:
-Dịch xong đọc lại một lượt: câu đó người Việt có nói thế không? Không thì viết lại cho thuận.
-- 帰りの駅で → "ở ga trên đường về", KHÔNG phải "ở nhà ga về"
-- Bổ ngữ nơi chốn/thời gian đứng đâu cho xuôi tiếng Việt thì để đó, đừng giữ nguyên chỗ của tiếng Nhật.
-
-Còn lại:
-- Tra glossary trước khi đoán nghĩa thành ngữ.
-- Bỏ hậu tố -san/-kun/-chan, chuyển sắc thái vào xưng hô.
-- Danh từ thường thì DỊCH, chỉ tên riêng mới phiên âm: 赤ちゃん → "em bé", KHÔNG phải "aka-chan".
-- Ngắn gọn cho vừa bong bóng. Không thêm chú thích.
-
-Trả về DUY NHẤT một khối JSON."""
+Không để sót chữ Nhật nào. Tên riêng phiên âm (瑠璃丸 → Rurimaru); danh từ thường thì dịch (赤ちゃん → "em bé"). Bỏ -san/-kun/-chan, chuyển sắc thái vào xưng hô. Tra glossary trước khi đoán thành ngữ. Ngắn gọn cho vừa bóng thoại, không chú thích. Viết theo trật tự tiếng Việt, đừng bám trật tự tiếng Nhật."""
