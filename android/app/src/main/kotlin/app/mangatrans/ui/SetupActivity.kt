@@ -3,9 +3,7 @@ package app.mangatrans.ui
 import android.app.ActivityManager
 import android.content.Context
 import android.os.Bundle
-import android.text.Html
 import android.view.Gravity
-import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.ScrollView
@@ -17,6 +15,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import app.mangatrans.Composition
+import app.mangatrans.adapters.cloud.GeminiLookup
 import app.mangatrans.adapters.assets.ModelStore
 import app.mangatrans.adapters.assets.PackageDownloader
 import app.mangatrans.ports.DownloadException
@@ -41,115 +40,205 @@ class SetupActivity : AppCompatActivity() {
     private lateinit var status: TextView
     private lateinit var bar: ProgressBar
     private lateinit var detail: TextView
-    private lateinit var actionBtn: Button
-    private lateinit var deleteBtn: Button
+    private lateinit var actionBtn: TextView
+    private lateinit var deleteBtn: TextView
+
+    /** Khoi Gemini — dung lai tu dau moi lan khoa doi trang thai. */
+    private lateinit var geminiBox: LinearLayout
 
     private var manifest: PackageManifest? = null
     private var job: Job? = null
 
+    private fun dp(v: Int) = Ui.dp(this, v)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        title = "Cài đặt lần đầu"
+        title = "Cài đặt"
         store = ModelStore(this, Composition.appVersion(this))
         downloader = PackageDownloader(store)
 
-        status = TextView(this).apply { textSize = 14f; setPadding(0, 16, 0, 8) }
+        status = TextView(this).apply {
+            setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 16f)
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            setPadding(0, 0, 0, dp(4))
+        }
         bar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
             max = 100
             visibility = android.view.View.GONE
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT,
+            ).apply { topMargin = dp(6); bottomMargin = dp(6) }
         }
-        detail = TextView(this).apply { textSize = 11f; alpha = 0.7f }
-        actionBtn = Button(this).apply { text = "Kiểm tra" }
-        deleteBtn = Button(this).apply {
-            text = "Xoá gói mô hình"
-            visibility = android.view.View.GONE
-            setOnClickListener { confirmDelete() }
-        }
-        val keyInput = android.widget.EditText(this).apply {
-            hint = "Khoá Gemini (tuỳ chọn) — để trống là tắt"
-            setText(app.mangatrans.adapters.cloud.GeminiLookup.key(this@SetupActivity).orEmpty())
-            inputType = android.text.InputType.TYPE_CLASS_TEXT
-            textSize = 13f
-        }
-        val keyNote = TextView(this).apply {
-            setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 12f)
-            setPadding(0, 24, 0, 8)
-            @Suppress("DEPRECATION")
-            setText(
-                Html.fromHtml(
-                    """
-                    <h3>Tra nghĩa bằng Gemini (tuỳ chọn)</h3>
-                    <p>Dùng cho nút <b>Hỏi Gemini</b> khi bạn khoanh lấy một cụm chữ.
-                    <b>Dịch trang vẫn chạy hoàn toàn trên máy</b> — chỉ đúng cụm chữ bạn
-                    khoanh mới được gửi đi, không bao giờ gửi cả trang hay ảnh màn hình.
-                    Để trống ô dưới là tắt hẳn.</p>
-                    <p><b>Lấy khoá thế nào:</b></p>
-                    <p>1. Bấm nút <b>Mở trang lấy khoá</b> bên dưới (hoặc vào
-                    aistudio.google.com/apikey).<br/>
-                    2. Đăng nhập bằng tài khoản Google của bạn.<br/>
-                    3. Bấm <b>Create API key</b> → chọn project nào cũng được.<br/>
-                    4. Bấm sao chép khoá, quay lại đây dán vào ô dưới rồi bấm Lưu.</p>
-                    <p><i>Tài khoản Gemini để chat KHÔNG phải là khoá API — vẫn phải tạo
-                    khoá riêng ở bước trên. Khoá chỉ nằm trong máy bạn.</i></p>
-                    """.trimIndent(),
-                    Html.FROM_HTML_MODE_COMPACT,
-                )
-            )
-        }
-        val keyOpen = Button(this).apply {
-            text = "Mở trang lấy khoá"
-            setOnClickListener {
-                runCatching {
-                    startActivity(
-                        android.content.Intent(
-                            android.content.Intent.ACTION_VIEW,
-                            android.net.Uri.parse(
-                                app.mangatrans.adapters.cloud.GeminiLookup.KEY_URL
-                            ),
-                        )
-                    )
-                }.onFailure {
-                    Toast.makeText(
-                        this@SetupActivity,
-                        "Không mở được trình duyệt. Vào: ${app.mangatrans.adapters.cloud.GeminiLookup.KEY_URL}",
-                        Toast.LENGTH_LONG,
-                    ).show()
-                }
-            }
-        }
-        val keyBtn = Button(this).apply {
-            text = "Lưu khoá Gemini"
-            setOnClickListener {
-                app.mangatrans.adapters.cloud.GeminiLookup.setKey(
-                    this@SetupActivity, keyInput.text.toString()
-                )
-                Toast.makeText(
-                    this@SetupActivity,
-                    if (keyInput.text.isBlank()) "Đã xoá khoá — tắt tra cứu Gemini."
-                    else "Đã lưu khoá.",
-                    Toast.LENGTH_SHORT,
-                ).show()
-            }
-        }
-        val redoBtn = Button(this).apply {
-            text = "Dịch lại các trang đã dịch"
-            setOnClickListener { confirmClearPageCache() }
-        }
+        detail = Ui.hint(this, "")
+        actionBtn = Ui.button(this, "Kiểm tra") {}
+        deleteBtn = Ui.button(this, "Xoá gói mô hình", Ui.C.danger, Ui.Weight.Quiet) {
+            confirmDelete()
+        }.apply { visibility = android.view.View.GONE }
+
+        val redoBtn = Ui.button(
+            this, "Dịch lại các trang đã dịch", Ui.C.neutral, Ui.Weight.Tonal,
+        ) { confirmClearPageCache() }
+
+        geminiBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
 
         setContentView(ScrollView(this).apply {
             addView(LinearLayout(this@SetupActivity).apply {
                 orientation = LinearLayout.VERTICAL
-                setPadding(40, 24, 40, 64)
+                setPadding(dp(18), dp(8), dp(18), dp(40))
                 gravity = Gravity.FILL_HORIZONTAL
+
+                addView(Ui.heading(this@SetupActivity, "Gói mô hình dịch"))
+                addView(Ui.panel(this@SetupActivity, Ui.C.info, status, bar, detail))
+                addView(actionBtn)
+                // Khoang tho truoc nut xoa: no khong duoc nam sat nut duoc bam
+                // nhieu nhat (Ui, quy tac 3).
+                addView(Ui.gap(this@SetupActivity, 10))
+                addView(deleteBtn)
+
+                addView(Ui.heading(this@SetupActivity, "Bản dịch đã lưu"))
+                addView(Ui.body(
+                    this@SetupActivity,
+                    "App nhớ kết quả của những trang đã dịch để mở lại là hiện ngay. " +
+                        "Sửa từ điển riêng xong thì xoá phần nhớ này để các trang cũ " +
+                        "được dịch lại theo nghĩa mới.",
+                    13f,
+                ))
+                addView(redoBtn)
+
+                addView(Ui.heading(this@SetupActivity, "Tra nghĩa bằng Gemini"))
+                addView(geminiBox)
+
+                addView(Ui.gap(this@SetupActivity, 8))
                 addView(explainer())
-                addView(status); addView(bar); addView(detail)
-                addView(actionBtn); addView(deleteBtn); addView(redoBtn)
-                addView(keyNote); addView(keyOpen); addView(keyInput); addView(keyBtn)
             })
         })
 
+        buildGemini()
         refresh()
     }
+
+    // ---------- khoi Gemini ----------
+
+    /**
+     * Hai canh khac han nhau, nen ve hai kieu khac han nhau:
+     *
+     *  - **chua co khoa** -> huong dan tung buoc, vi nguoi dung chua biet lay o dau;
+     *  - **da co khoa**   -> mot dong xac nhan ngan, va khoa **bi che di**.
+     *
+     * ⚠️ Truoc day o nay hien nguyen van khoa API tren man hinh, luc nao cung
+     * hien. Do la thu khong nen nam san tren man hinh de ai cam may len cung
+     * doc duoc — va no cung khong giup gi, vi nguoi dung chi can biet "da luu
+     * chua" chu khong can doc lai tung ky tu.
+     */
+    private fun buildGemini() {
+        geminiBox.removeAllViews()
+        val saved = GeminiLookup.key(this)
+
+        geminiBox.addView(Ui.body(
+            this,
+            Ui.html(
+                "Dùng cho nút <b>Hỏi Gemini</b> khi bạn khoanh lấy một cụm chữ bằng " +
+                    "icon ⌖. <b>Dịch trang vẫn chạy hoàn toàn trên máy</b> — chỉ đúng " +
+                    "cụm chữ bạn khoanh mới được gửi đi, không bao giờ gửi cả trang " +
+                    "hay ảnh màn hình."
+            ),
+            13f,
+        ))
+
+        if (!saved.isNullOrBlank()) {
+            geminiBox.addView(Ui.panel(
+                this, Ui.C.primary,
+                TextView(this).apply {
+                    text = "Đã lưu khoá  •  ${mask(saved)}"
+                    setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 15f)
+                    setTypeface(null, android.graphics.Typeface.BOLD)
+                },
+                Ui.hint(this, "Nút Hỏi Gemini đang bật. Khoá chỉ nằm trong máy bạn."),
+            ))
+            geminiBox.addView(Ui.buttonRow(
+                this,
+                Ui.smallButton(this, "Đổi khoá", Ui.C.info) { askForKey(replacing = true) },
+                Ui.smallButton(this, "Xoá khoá", Ui.C.danger, Ui.Weight.Quiet) {
+                    GeminiLookup.setKey(this, "")
+                    toast("Đã xoá khoá — tắt tra cứu Gemini.")
+                    buildGemini()
+                },
+            ))
+            return
+        }
+
+        geminiBox.addView(Ui.panel(
+            this, Ui.C.info,
+            TextView(this).apply {
+                text = "Lấy khoá miễn phí, 4 bước"
+                setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 15f)
+                setTypeface(null, android.graphics.Typeface.BOLD)
+                setPadding(0, 0, 0, dp(6))
+            },
+            Ui.step(this, 1, Ui.html("Bấm <b>Mở trang lấy khoá</b> bên dưới."), Ui.C.info),
+            Ui.step(this, 2, "Đăng nhập bằng tài khoản Google của bạn.", Ui.C.info),
+            Ui.step(this, 3, Ui.html("Bấm <b>Create API key</b> — chọn project nào cũng được."), Ui.C.info),
+            Ui.step(this, 4, Ui.html("Sao chép khoá, quay lại đây bấm <b>Dán khoá vào đây</b>."), Ui.C.info),
+            Ui.gap(this, 4),
+            Ui.hint(
+                this,
+                "Tài khoản Gemini để chat KHÔNG phải là khoá API — vẫn phải tạo khoá " +
+                    "riêng ở bước trên. Không nhập khoá thì app vẫn chạy đủ, chỉ là " +
+                    "không có nút Hỏi Gemini.",
+            ),
+        ))
+        geminiBox.addView(Ui.button(this, "Mở trang lấy khoá", Ui.C.info, Ui.Weight.Tonal) {
+            openKeyPage()
+        })
+        geminiBox.addView(Ui.button(this, "Dán khoá vào đây", Ui.C.primary) {
+            askForKey(replacing = false)
+        })
+    }
+
+    /** Chi giu 4 ky tu cuoi — du de doi chieu, khong du de dung lai. */
+    private fun mask(key: String): String =
+        if (key.length <= 4) "••••" else "••••" + key.takeLast(4)
+
+    private fun askForKey(replacing: Boolean) {
+        val input = android.widget.EditText(this).apply {
+            hint = "Dán khoá vào đây"
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or
+                android.text.InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
+            setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 14f)
+        }
+        AlertDialog.Builder(this)
+            .setTitle(if (replacing) "Đổi khoá Gemini" else "Lưu khoá Gemini")
+            .setView(LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(dp(22), dp(12), dp(22), 0)
+                addView(input)
+                addView(Ui.hint(this@SetupActivity, "Khoá chỉ được lưu trong máy bạn."))
+            })
+            .setNegativeButton("Huỷ", null)
+            .setPositiveButton("Lưu") { _, _ ->
+                val k = input.text.toString().trim()
+                if (k.isEmpty()) { toast("Chưa dán khoá nào."); return@setPositiveButton }
+                GeminiLookup.setKey(this, k)
+                toast("Đã lưu khoá.")
+                buildGemini()
+            }
+            .show()
+    }
+
+    private fun openKeyPage() {
+        runCatching {
+            startActivity(
+                android.content.Intent(
+                    android.content.Intent.ACTION_VIEW,
+                    android.net.Uri.parse(GeminiLookup.KEY_URL),
+                )
+            )
+        }.onFailure {
+            toast("Không mở được trình duyệt. Vào: ${GeminiLookup.KEY_URL}")
+        }
+    }
+
+    private fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_SHORT).show()
 
     /**
      * Story 4.1 — FR-054. Giai thich TUNG quyen bang ngon ngu thuong, truoc khi
@@ -158,31 +247,62 @@ class SetupActivity : AppCompatActivity() {
      * "Du lieu khong roi khoi may" la diem ban hang chinh (D1/D3), nen no nam o
      * dau, khong phai chu thich nho o cuoi.
      */
-    private fun explainer() = TextView(this).apply {
-        textSize = 14f
-        @Suppress("DEPRECATION")
-        setText(
-            Html.fromHtml(
-                """
-                <h3>Mọi thứ chạy ngay trên máy bạn</h3>
-                <p>App dịch manga Nhật → Việt <b>hoàn toàn trên điện thoại</b>. Ảnh màn hình,
-                chữ đọc được và bản dịch <b>không bao giờ rời khỏi máy</b> — không có máy chủ,
-                không có tài khoản, không gửi gì đi đâu.</p>
-                <p>App chỉ dùng mạng <b>một lần duy nhất</b>: tải gói mô hình dịch về. Xong rồi
-                thì tắt mạng vẫn dịch được.</p>
+    private fun explainer() = LinearLayout(this).apply {
+        orientation = LinearLayout.VERTICAL
 
-                <h3>Hai quyền app sẽ xin, và để làm gì</h3>
-                <p><b>Hiển thị trên ứng dụng khác.</b> Để icon dịch nổi lên trên app đọc truyện.
-                Không có quyền này thì bạn phải thoát ra vào app này mỗi lần muốn dịch.
-                Android bắt bạn tự bật trong Cài đặt, không có hộp thoại xin nhanh.</p>
-                <p><b>Chụp màn hình.</b> Để đọc trang truyện đang hiện. Ảnh chụp được xử lý
-                trong máy rồi bỏ, không lưu lại, không gửi đi. Android sẽ hỏi lại quyền này
-                mỗi lần bạn mở app — đó là cách Android bảo vệ bạn, không phải lỗi.</p>
-                <hr/>
-                """.trimIndent(),
-                Html.FROM_HTML_MODE_COMPACT,
-            )
-        )
+        addView(Ui.heading(this@SetupActivity, "Dữ liệu của bạn đi đâu"))
+        addView(Ui.panel(
+            this@SetupActivity, Ui.C.primary,
+            TextView(this@SetupActivity).apply {
+                text = "Không đi đâu cả"
+                setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 15f)
+                setTypeface(null, android.graphics.Typeface.BOLD)
+                setPadding(0, 0, 0, dp(4))
+            },
+            Ui.body(
+                this@SetupActivity,
+                Ui.html(
+                    "Ảnh màn hình, chữ đọc được và bản dịch <b>không bao giờ rời khỏi " +
+                        "máy</b> — không máy chủ, không tài khoản. App chỉ dùng mạng " +
+                        "<b>một lần</b> để tải gói mô hình; xong rồi tắt mạng vẫn dịch được."
+                ),
+                13f,
+            ),
+        ))
+
+        addView(Ui.heading(this@SetupActivity, "Hai quyền app xin, và để làm gì"))
+        addView(Ui.card(
+            this@SetupActivity, Ui.C.neutral,
+            TextView(this@SetupActivity).apply {
+                text = "Hiển thị trên ứng dụng khác"
+                setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 15f)
+                setTypeface(null, android.graphics.Typeface.BOLD)
+                setPadding(0, 0, 0, dp(4))
+            },
+            Ui.body(
+                this@SetupActivity,
+                "Để icon dịch nổi lên trên app đọc truyện. Không có quyền này thì mỗi " +
+                    "lần muốn dịch bạn phải thoát ra vào app này. Android bắt tự bật " +
+                    "trong Cài đặt, không có hộp thoại xin nhanh.",
+                13f,
+            ),
+        ))
+        addView(Ui.card(
+            this@SetupActivity, Ui.C.neutral,
+            TextView(this@SetupActivity).apply {
+                text = "Chụp màn hình"
+                setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 15f)
+                setTypeface(null, android.graphics.Typeface.BOLD)
+                setPadding(0, 0, 0, dp(4))
+            },
+            Ui.body(
+                this@SetupActivity,
+                "Để đọc trang truyện đang hiện. Ảnh chụp được xử lý trong máy rồi bỏ, " +
+                    "không lưu lại, không gửi đi. Android hỏi lại quyền này mỗi lần bạn " +
+                    "mở app — đó là cách Android bảo vệ bạn, không phải lỗi.",
+                13f,
+            ),
+        ))
     }
 
     // ---------- trang thai ----------
@@ -205,7 +325,7 @@ class SetupActivity : AppCompatActivity() {
         val m = manifest ?: runCatching { downloader.fetchManifest() }.getOrElse {
             status.text = "Không lấy được thông tin gói mô hình."
             detail.text = "Cần mạng để tải lần đầu. Kiểm tra kết nối rồi thử lại."
-            actionBtn.text = "Thử lại"
+            Ui.restyle(this, actionBtn, "Thử lại", Ui.C.warn, Ui.Weight.Filled)
             actionBtn.setOnClickListener { manifest = null; refresh() }
             actionBtn.isEnabled = true
             return
@@ -230,7 +350,7 @@ class SetupActivity : AppCompatActivity() {
         status.text = "Gói mô hình đã sẵn sàng (phiên bản ${m.packageVersion})."
         detail.text = "Tắt mạng vẫn dịch được."
         bar.visibility = android.view.View.GONE
-        actionBtn.text = "Xong"
+        Ui.restyle(this, actionBtn, "Xong", Ui.C.primary, Ui.Weight.Filled)
         actionBtn.setOnClickListener { finish() }
         actionBtn.isEnabled = true
         deleteBtn.visibility = android.view.View.VISIBLE
@@ -244,7 +364,7 @@ class SetupActivity : AppCompatActivity() {
             "app này là ${s.appVersion}.\n\n" +
             "Cập nhật app lên bản mới nhất rồi mở lại màn hình này."
         bar.visibility = android.view.View.GONE
-        actionBtn.text = "Kiểm tra lại"
+        Ui.restyle(this, actionBtn, "Kiểm tra lại", Ui.C.warn, Ui.Weight.Filled)
         actionBtn.setOnClickListener { manifest = null; refresh() }
         actionBtn.isEnabled = true
     }
@@ -254,7 +374,7 @@ class SetupActivity : AppCompatActivity() {
         status.text = "${s.badFiles.size} file bị hỏng khi tải."
         detail.text = "Sẽ tải lại đúng những file đó, không tải lại cả gói:\n" +
             s.badFiles.joinToString("\n") { "  • $it" }
-        actionBtn.text = "Tải lại phần hỏng"
+        Ui.restyle(this, actionBtn, "Tải lại phần hỏng", Ui.C.warn, Ui.Weight.Filled)
         actionBtn.setOnClickListener {
             lifecycleScope.launch {
                 s.badFiles.forEach { name -> store.find(name)?.delete() }
@@ -290,7 +410,7 @@ class SetupActivity : AppCompatActivity() {
             })
         }
         bar.visibility = android.view.View.GONE
-        actionBtn.text = if (have > 0) "Tải tiếp" else "Tải về"
+        Ui.restyle(this, actionBtn, if (have > 0) "Tải tiếp" else "Tải về", Ui.C.primary, Ui.Weight.Filled)
         actionBtn.setOnClickListener { warnIfWeakThenDownload(m) }
         actionBtn.isEnabled = true
     }
@@ -348,7 +468,7 @@ class SetupActivity : AppCompatActivity() {
 
     private fun startDownload(m: PackageManifest) {
         bar.visibility = android.view.View.VISIBLE
-        actionBtn.text = "Tạm dừng"
+        Ui.restyle(this, actionBtn, "Tạm dừng", Ui.C.neutral, Ui.Weight.Tonal)
         actionBtn.setOnClickListener { job?.cancel() }
         deleteBtn.visibility = android.view.View.GONE
 
@@ -367,11 +487,11 @@ class SetupActivity : AppCompatActivity() {
                 if (e is kotlinx.coroutines.CancellationException) {
                     status.text = "Đã tạm dừng. Phần đã tải được giữ lại."
                     detail.text = "Bấm Tải tiếp để chạy tiếp từ chỗ dở."
-                    actionBtn.text = "Tải tiếp"
+                    Ui.restyle(this@SetupActivity, actionBtn, "Tải tiếp", Ui.C.primary, Ui.Weight.Filled)
                     actionBtn.setOnClickListener { startDownload(m) }
                 } else {
                     say(e)
-                    actionBtn.text = "Thử lại"
+                    Ui.restyle(this@SetupActivity, actionBtn, "Thử lại", Ui.C.warn, Ui.Weight.Filled)
                     actionBtn.setOnClickListener { startDownload(m) }
                 }
             }

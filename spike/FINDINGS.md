@@ -2782,6 +2782,79 @@ Voi mo hinh nho, ta quy tac truu tuong an toan hon mot vi du hay.
 chong nhau va sinh ra ban dich bia.
 ---
 
+## F66 — Mot nut "Dung" day mo hinh GIU NGUYEN tieng Nhat, nup trong mot man hinh xau
+
+Nguoi dung nho lam lai giao dien hai man hinh cho de doc. Lam giao dien thi
+nhin ky, va nhin ky thi lo ra mot loi **khong phai giao dien**.
+
+### Loi
+
+Man "Tu dien rieng", muc "Cho ban duyet", co hai muc app tu de xuat:
+
+```
+Nữ郎  →  Nữ郎      [✓ Dung] [Sua roi dung] [Bo]
+小生  →  小生      [✓ Dung] [Sua roi dung] [Bo]
+```
+
+Muc app tu de xuat sinh ra tu truong `speaker` cua mo hinh (AD-8), nen luc moi
+sinh ra `meaning` **bang chinh `surface`** — cho trong cho nguoi dung dien.
+
+Bam `✓ Dung` o day nhet vao prompt dong:
+
+```
+- 小生 [tên riêng]: 小生
+```
+
+Tuc la **bao mo hinh rang nghia tieng Viet cua 小生 la 小生** — giu nguyen tieng
+Nhat o dung cum do, o MOI trang dich ve sau. Nut do khong chi vo dung, no lam
+hong ban dich, va no nam ngay canh hai nut vo hai voi cung mot ve ngoai.
+
+### Chua
+
+- `✓ Dung` **khong hien ra** khi `meaning == surface`; chi con "Dat nghia roi
+  dung" (to dam) va "Bo".
+- Dong nghia viet thang "Chua co nghia tieng Viet" thay vi lap lai chu Nhat —
+  lap lai nhin nhu mot loi hien thi chu khong nhu mot cho trong.
+- Hop sua khong do san chu Nhat vao o nghia nua: do san thi nguoi dung phai xoa
+  tay truoc khi go, ma nhieu nguoi se tuong the la xong roi bam Luu.
+
+### Vi sao no song lau den vay
+
+Ba nut deu la `Button` mac dinh cua Android: chu IN HOA, nen xam, cao bang
+nhau. Nhin vao khong co gi noi rang mot trong ba cai do co hau qua khac han hai
+cai kia. Toi da nhin man hinh nay nhieu lan va khong thay.
+
+**Giao dien khong phai lop son phu len logic. No la cach logic tu noi ra minh
+lam gi.** Mot day nut xam giong het nhau la mot cach **giau** su khac nhau giua
+chung.
+
+### Bo phan dung chung (`Ui.kt`)
+
+Ba man hinh (`SetupActivity`, `GlossaryActivity`, `GuideActivity`) truoc day moi
+man tu chon co chu, khoang cach, mau nut rieng. Gom lai mot cho, ba quy tac:
+
+1. **Nut noi ra hau qua bang mau.** Viec chinh mau dac, viec phu mau nhat, viec
+   khong hoan tac duoc mau do. Khong bao gio de ba loai cung mot mau.
+2. **Chu dai phai co cap bac** — tieu de, cau dan, than. Khong phai mot khoi
+   `<p>` lien tuc (man Cai dat truoc day la 9 doan HTML lien nhau).
+3. **Nut cao it nhat 44 dp, va nut xoa khong nam sat nut duoc bam nhieu nhat.**
+
+### Mot loi rieng tu: khoa API nam nguyen van tren man hinh
+
+Man Cai dat hien nguyen van khoa Gemini trong mot `EditText`, luc nao cung hien.
+Ai cam may len cung doc duoc. Ma no cung khong giup gi: nguoi dung chi can biet
+**da luu chua**, khong can doc lai tung ky tu.
+
+Chua: hien `••••80yQ` (4 ky tu cuoi, du de doi chieu, khong du de dung lai), va
+tach thanh hai canh — chua co khoa thi hien huong dan 4 buoc, co roi thi mot
+dong xac nhan kem [Doi khoa] [Xoa khoa].
+
+### Quy tac rut ra
+
+**Khi mot man hinh "nhin xau", hay doc lai xem no dang giau mat cai gi.** Lan
+nay cai bi giau la mot nut lam hong moi trang dich ve sau.
+---
+
 ## Còn nợ
 
 | # | Việc | Chặn gì | Trạng thái |

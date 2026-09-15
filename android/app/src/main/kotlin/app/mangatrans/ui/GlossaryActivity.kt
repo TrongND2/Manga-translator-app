@@ -4,10 +4,9 @@ import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.text.InputType
+import android.util.TypedValue
 import android.view.Gravity
-import android.view.View
 import android.widget.ArrayAdapter
-import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -17,6 +16,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
+import app.mangatrans.adapters.cloud.GeminiLookup
 import app.mangatrans.adapters.storage.JsonGlossaryStore
 import app.mangatrans.ports.GlossaryEntry
 import app.mangatrans.ports.GlossaryKind
@@ -67,7 +67,7 @@ class GlossaryActivity : AppCompatActivity() {
 
         root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(24, 16, 24, 48)
+            setPadding(Ui.dp(context, 18), Ui.dp(context, 8), Ui.dp(context, 18), Ui.dp(context, 40))
         }
         setContentView(ScrollView(this).apply { addView(root) })
         refresh()
@@ -98,32 +98,55 @@ class GlossaryActivity : AppCompatActivity() {
 
         root.removeAllViews()
 
-        root.addView(Button(this@GlossaryActivity).apply {
-            text = "+ Thêm mục"
-            setOnClickListener { edit(null) }
-        })
+        root.addView(Ui.body(
+            this,
+            "Mỗi mục ở đây ép mô hình dịch một cụm chữ Nhật theo đúng nghĩa bạn " +
+                "đặt. Đây là cách chắc chắn nhất để sửa một chỗ dịch sai.",
+            13f,
+        ))
+        root.addView(Ui.button(this, "＋  Thêm mục", Ui.C.glossary) { edit(null) })
+        root.addView(Ui.hint(
+            this,
+            "Không gõ được chữ Nhật? Giữ icon nổi → chạm ⌖ → khoanh lấy chữ ngay " +
+                "trên trang truyện.",
+        ))
 
         // --- Muc cho xac nhan (FR-034) ---
         if (proposed.isNotEmpty()) {
-            root.addView(header("Chờ xác nhận (${proposed.size})"))
-            root.addView(note(
+            root.addView(Ui.heading(this, "Chờ bạn duyệt  ·  ${proposed.size}"))
+            root.addView(Ui.body(
+                this,
                 "App tự nhặt các tên này từ trường \"người nói\" mà mô hình trả về. " +
-                    "Chúng CHƯA được dùng khi dịch — bấm ✓ thì mới dùng."
+                    "Chúng CHƯA được dùng khi dịch.",
+                13f,
             ))
             proposed.sortedBy { it.surface }.forEach { root.addView(proposedRow(it)) }
         }
 
         if (junk.isNotEmpty()) {
-            root.addView(note(
-                "Đã bỏ ${junk.size} mục app nhặt nhầm (không phải chữ Nhật nên không bao giờ " +
-                    "khớp được với trang truyện): ${junk.joinToString(", ") { it.surface }}"
+            root.addView(Ui.panel(
+                this, Ui.C.warn,
+                Ui.hint(
+                    this,
+                    "Đã bỏ ${junk.size} mục app nhặt nhầm — không phải chữ Nhật nên " +
+                        "không bao giờ khớp được với trang truyện: " +
+                        junk.joinToString(", ") { it.surface },
+                ),
             ))
         }
 
         // --- Muc dang dung (FR-033) ---
-        root.addView(header("Đang dùng khi dịch (${confirmed.size})"))
+        root.addView(Ui.heading(this, "Đang dùng khi dịch  ·  ${confirmed.size}"))
         if (confirmed.isEmpty()) {
-            root.addView(note("Chưa có mục nào. Từ điển trống thì bản dịch hay bịa tên riêng."))
+            root.addView(Ui.panel(
+                this, Ui.C.neutral,
+                Ui.body(
+                    this,
+                    "Chưa có mục nào. Từ điển trống thì bản dịch hay bịa tên riêng và " +
+                        "dịch thành ngữ theo nghĩa đen.",
+                    13f,
+                ),
+            ))
         } else {
             confirmed.sortedWith(compareBy({ it.kind.ordinal }, { it.surface }))
                 .forEach { root.addView(confirmedRow(it)) }
@@ -132,45 +155,85 @@ class GlossaryActivity : AppCompatActivity() {
 
     // ---------- cac dong ----------
 
-    private fun proposedRow(e: GlossaryEntry): LinearLayout = row(e) { bar ->
-        bar.addView(smallButton("✓ Dùng") {
-            lifecycleScope.launch {
-                store.confirm(SERIES, e.surface)
-                toast("Đã thêm \"${e.surface}\" vào từ điển")
-                refresh()
-            }
-        })
-        bar.addView(smallButton("✎ Sửa rồi dùng") { edit(e, promote = true) })
-        bar.addView(smallButton("✗ Bỏ") { confirmDelete(e) })
-    }
-
-    private fun confirmedRow(e: GlossaryEntry): LinearLayout = row(e) { bar ->
-        bar.addView(smallButton("✎ Sửa") { edit(e) })
-        bar.addView(smallButton("✗ Xoá") { confirmDelete(e) })
-    }
-
-    private fun row(e: GlossaryEntry, buttons: (LinearLayout) -> Unit): LinearLayout =
-        LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(0, 20, 0, 4)
-            addView(TextView(this@GlossaryActivity).apply {
-                text = "${e.surface}  →  ${e.meaning}"
-                textSize = 16f
-            })
-            addView(TextView(this@GlossaryActivity).apply {
-                text = kindLabel[e.kind]
-                textSize = 11f
-                alpha = 0.6f
-            })
-            addView(LinearLayout(this@GlossaryActivity).apply {
-                orientation = LinearLayout.HORIZONTAL
-                buttons(this)
-            })
-            addView(View(this@GlossaryActivity).apply {
-                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 2)
-                setBackgroundColor(0x22808080)
+    private fun proposedRow(e: GlossaryEntry): LinearLayout = row(e, Ui.C.warn) { bar ->
+        // ⚠️ KHONG cho bam thang "Dung" khi muc chua co nghia tieng Viet.
+        //
+        // Muc app tu de xuat sinh ra tu truong "nguoi noi", nen `meaning` ban
+        // dau bang chinh `surface`. Xac nhan mot muc nhu the se nhet vao prompt
+        // dong `小生 [ten rieng]: 小生` — tuc la **bao mo hinh giu nguyen tieng
+        // Nhat** o dung cum do. Nut do khong chi vo dung ma con lam hong ban dich.
+        if (!needsMeaning(e)) {
+            bar.addView(Ui.smallButton(this, "✓  Dùng", Ui.C.primary, Ui.Weight.Filled) {
+                lifecycleScope.launch {
+                    store.confirm(SERIES, e.surface)
+                    toast("Đã thêm \"${e.surface}\" vào từ điển")
+                    refresh()
+                }
             })
         }
+        bar.addView(Ui.smallButton(
+            this,
+            if (needsMeaning(e)) "Đặt nghĩa rồi dùng" else "Sửa rồi dùng",
+            Ui.C.info,
+            if (needsMeaning(e)) Ui.Weight.Filled else Ui.Weight.Tonal,
+        ) { edit(e, promote = true) })
+        bar.addView(Ui.smallButton(this, "Bỏ", Ui.C.danger, Ui.Weight.Quiet) { confirmDelete(e) })
+    }
+
+    /** Muc chi moi co chu Nhat, chua ai dat nghia tieng Viet cho no. */
+    private fun needsMeaning(e: GlossaryEntry) = e.meaning.trim() == e.surface.trim()
+
+    private fun confirmedRow(e: GlossaryEntry): LinearLayout = row(e, Ui.C.glossary) { bar ->
+        bar.addView(Ui.smallButton(this, "Sửa", Ui.C.info) { edit(e) })
+        bar.addView(Ui.smallButton(this, "Xoá", Ui.C.danger, Ui.Weight.Quiet) { confirmDelete(e) })
+    }
+
+    /**
+     * Mot muc tu dien.
+     *
+     * Chu Nhat dung **mot dong rieng va to hon**, nghia tieng Viet o dong duoi.
+     * Ban truoc nhet ca hai vao mot dong `A → B` cung co chu: mat phai doc het
+     * ca dong moi biet dau la nguyen ban dau la nghia, va chu Nhat dai thi ca
+     * dong tran xuong trong nhu mot khoi chu lien.
+     */
+    private fun row(
+        e: GlossaryEntry,
+        color: Int,
+        buttons: (LinearLayout) -> Unit,
+    ): LinearLayout = Ui.card(
+        this, color,
+        LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            addView(TextView(this@GlossaryActivity).apply {
+                text = e.surface
+                setTextSize(TypedValue.COMPLEX_UNIT_SP, 19f)
+                setTypeface(null, android.graphics.Typeface.BOLD)
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            })
+            addView(Ui.chip(this@GlossaryActivity, kindLabel[e.kind].orEmpty(), color))
+        },
+        TextView(this).apply {
+            // Lap lai y nguyen chu Nhat o dong nghia thi nhin nhu mot loi hien
+            // thi. Noi thang ra la chua ai dat nghia thi dung hon.
+            if (needsMeaning(e)) {
+                text = "Chưa có nghĩa tiếng Việt"
+                setTypeface(null, android.graphics.Typeface.ITALIC)
+                alpha = 0.55f
+            } else {
+                text = e.meaning
+                alpha = 0.85f
+            }
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+            setPadding(0, Ui.dp(this@GlossaryActivity, 4), 0, 0)
+            setLineSpacing(Ui.dp(this@GlossaryActivity, 3).toFloat(), 1f)
+        },
+        LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, Ui.dp(this@GlossaryActivity, 8), 0, 0)
+            buttons(this)
+        },
+    )
 
     // ---------- them / sua ----------
 
@@ -190,7 +253,10 @@ class GlossaryActivity : AppCompatActivity() {
         val meaning = EditText(this).apply {
             hint = "Dịch sang tiếng Việt"
             inputType = InputType.TYPE_CLASS_TEXT
-            setText(old?.meaning ?: "")
+            // Muc de xuat co `meaning` bang chinh chu Nhat — do khong phai nghia,
+            // do la cho trong. Do san vao o thi nguoi dung phai xoa tay truoc khi
+            // go, ma nhieu nguoi se tuong the la da xong roi bam Luu.
+            setText(old?.meaning?.takeIf { it.trim() != old.surface.trim() } ?: "")
         }
         val kinds = GlossaryKind.entries.toList()
         val kind = Spinner(this).apply {
@@ -202,15 +268,33 @@ class GlossaryActivity : AppCompatActivity() {
             setSelection(kinds.indexOf(old?.kind ?: GlossaryKind.ProperNoun))
         }
 
+        // Bang chu quyet dinh ai lam gi: nut o day dat ngay DUOI o nghia, vi no
+        // la thu DIEN vao o do. Dat cuoi form thi khong ai noi duoc no dien vao
+        // dau.
+        val askStatus = Ui.hint(this, "")
+        val ask = Ui.smallButton(this, "✨  Hỏi Gemini", Ui.C.info) {
+            askGemini(surface.text.toString().trim(), meaning, askStatus)
+        }
+
         val form = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(48, 24, 48, 0)
-            addView(surface); addView(meaning); addView(kind)
+            setPadding(Ui.dp(context, 22), Ui.dp(context, 12), Ui.dp(context, 22), 0)
+            addView(label("Nguyên bản tiếng Nhật"))
+            addView(surface)
+            addView(label("Nghĩa tiếng Việt"))
+            addView(meaning)
+            addView(LinearLayout(this@GlossaryActivity).apply {
+                orientation = LinearLayout.HORIZONTAL
+                addView(ask)
+            })
+            addView(askStatus)
+            addView(label("Loại"))
+            addView(kind)
         }
 
         AlertDialog.Builder(this)
             .setTitle(if (old == null) "Thêm mục" else "Sửa mục")
-            .setView(form)
+            .setView(ScrollView(this).apply { addView(form) })
             .setNegativeButton("Huỷ", null)
             .setPositiveButton("Lưu") { _, _ ->
                 val s = surface.text.toString().trim()
@@ -241,6 +325,45 @@ class GlossaryActivity : AppCompatActivity() {
         if (promote) toast("Sửa xong sẽ được dùng ngay khi dịch")
     }
 
+    /**
+     * Tra nghia cum chu Nhat dang go, dien thang vao o nghia.
+     *
+     * ⚠️ Day la lan goi ra ngoai internet DUY NHAT cua man hinh nay, va no chi
+     * gui **dung cum chu trong o nguyen ban** — vai chu, do chinh nguoi dung go
+     * hoac khoanh. Khong co khoa thi nut nay chi bao cho biet lay khoa o dau,
+     * chu khong lam gi ca.
+     *
+     * Ket qua di vao o de **sua duoc**: mo hinh cua Google cung sai, va muc tu
+     * dien sai thi lam hong moi trang dich ve sau (AD-4).
+     */
+    private fun askGemini(ja: String, into: EditText, status: TextView) {
+        if (ja.isEmpty()) {
+            status.text = "Điền ô nguyên bản tiếng Nhật trước đã."
+            return
+        }
+        val key = GeminiLookup.key(this)
+        if (key.isNullOrBlank()) {
+            status.text = "Chưa có khoá Gemini. Vào Cài đặt → Tra nghĩa bằng Gemini."
+            return
+        }
+        status.text = "Đang hỏi Gemini..."
+        lifecycleScope.launch {
+            GeminiLookup(this@GlossaryActivity, key).meaningOf(ja)
+                .onSuccess {
+                    into.setText(it)
+                    status.text = "Gemini gợi ý — sửa lại nếu thấy chưa đúng rồi bấm Lưu."
+                }
+                .onFailure { status.text = "Không hỏi được: ${it.message}" }
+        }
+    }
+
+    private fun label(s: String) = TextView(this).apply {
+        text = s
+        setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
+        alpha = 0.6f
+        setPadding(0, Ui.dp(this@GlossaryActivity, 10), 0, 0)
+    }
+
     private fun confirmDelete(e: GlossaryEntry) {
         AlertDialog.Builder(this)
             .setMessage("Xoá \"${e.surface}\"?")
@@ -252,31 +375,6 @@ class GlossaryActivity : AppCompatActivity() {
     }
 
     // ---------- vun vat ----------
-
-    private fun header(s: String): TextView = TextView(this).apply {
-        text = s
-        textSize = 15f
-        setTypeface(null, android.graphics.Typeface.BOLD)
-        setPadding(0, 40, 0, 4)
-    }
-
-    private fun note(s: String): TextView = TextView(this).apply {
-        text = s
-        textSize = 11f
-        alpha = 0.7f
-        setPadding(0, 0, 0, 8)
-    }
-
-    private fun smallButton(label: String, onClick: () -> Unit): Button =
-        Button(this).apply {
-            text = label
-            textSize = 11f
-            minWidth = 0
-            minimumWidth = 0
-            setPadding(20, 0, 20, 0)
-            gravity = Gravity.CENTER
-            setOnClickListener { onClick() }
-        }
 
     private fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_SHORT).show()
 }

@@ -48,8 +48,11 @@ class GuideActivity : AppCompatActivity() {
         root.addView(
             card(
                 "≡", 0xFF5E35B1.toInt(), "Giữ icon",
-                "Hiện hai icon con: ? mở trang này, ✕ tắt app.\n" +
-                    "✕ cố ý để xa hơn — chạm nhầm là mất quyền chụp, phải cấp lại.",
+                "Hiện ba icon con:\n" +
+                    "📖  mở trang hướng dẫn này\n" +
+                    "⌖  khoanh lấy chữ trên màn hình\n" +
+                    "✕  tắt app\n" +
+                    "✕ cố ý để xa hơn hai cái kia — chạm nhầm là mất quyền chụp, phải cấp lại.",
             )
         )
         root.addView(
@@ -57,6 +60,14 @@ class GuideActivity : AppCompatActivity() {
                 "◐", 0xFF0277BD.toInt(), "Chạm giữ vào bóng thoại",
                 "Chữ Nhật gốc hiện lại trong lúc bạn giữ. Thả ra là bản dịch quay về. " +
                     "Dùng để đối chiếu.",
+            )
+        )
+        root.addView(
+            note(
+                "Lật trang hay chuyển app là app dừng dịch ngay.",
+                "Bản dịch của trang cũ được gỡ khỏi màn hình trong khoảng một giây, " +
+                    "để nó không nằm chắn trang mới. Muốn dịch trang mới thì chạm " +
+                    "icon lại.",
             )
         )
 
@@ -101,12 +112,50 @@ class GuideActivity : AppCompatActivity() {
             )
         )
 
-        root.addView(heading("Từ điển riêng"))
+        root.addView(heading("Khi có chỗ dịch sai"))
+        root.addView(
+            card(
+                "⌖", 0xFF00695C.toInt(), "Khoanh lấy chữ rồi tự đặt nghĩa",
+                "Giữ icon → chạm ⌖ → kéo một khung quanh chữ cần lấy. App đọc chữ " +
+                    "Nhật trong khung ra, bạn gõ nghĩa tiếng Việt rồi lưu.\n\n" +
+                    "Đây là cách CHẮC CHẮN NHẤT để sửa một chỗ dịch sai: mô hình chạy " +
+                    "trên máy đôi khi bỏ qua một cụm hoặc dịch thành ngữ theo nghĩa " +
+                    "đen, và một mục từ điển ép được nó dịch đúng.",
+            )
+        )
         root.addView(
             note(
-                "Dịch sai tên nhân vật? Sửa một lần, các trang sau nhớ theo.",
-                "App tự nhặt tên nó gặp nhiều lần và hỏi bạn trước khi dùng. " +
-                    "Mở từ màn hình chính → Từ điển riêng.",
+                "Từ điển riêng áp dụng cho mọi lần dịch sau.",
+                "Kể cả trang đã dịch rồi — nhưng trang đã dịch được app nhớ sẵn kết " +
+                    "quả cũ, nên vào Cài đặt → \"Dịch lại các trang đã dịch\" để xoá " +
+                    "phần nhớ đó.",
+            )
+        )
+        root.addView(
+            note(
+                "App cũng tự đề xuất tên nhân vật, nhưng hỏi bạn trước.",
+                "Tên nào gặp nhiều lần thì app đưa vào mục \"Chờ bạn duyệt\" ở Từ điển " +
+                    "riêng. Chưa bấm duyệt thì chưa được dùng khi dịch.",
+            )
+        )
+
+        root.addView(heading("Tra nghĩa bằng Gemini"))
+        root.addView(
+            note(
+                "Tuỳ chọn, mặc định tắt.",
+                "Khi đã khoanh được một cụm chữ, có nút Hỏi Gemini để lấy nhanh nghĩa " +
+                    "gợi ý — tiện khi bạn không chắc cụm đó nghĩa gì. Nút này cũng có " +
+                    "trong ô thêm mục ở Từ điển riêng.",
+            )
+        )
+        root.addView(
+            note(
+                "Đây là đường ra mạng DUY NHẤT của app.",
+                "Và nó rất hẹp: chỉ đúng cụm chữ bạn khoanh mới được gửi đi, không bao " +
+                    "giờ gửi cả trang hay ảnh màn hình; chỉ chạy khi bạn tự bấm nút. " +
+                    "Dịch trang vẫn chạy 100% trên máy. Không nhập khoá thì tính năng " +
+                    "tắt hẳn và app chạy đủ như cũ.\n\n" +
+                    "Hướng dẫn lấy khoá miễn phí nằm ở Cài đặt.",
             )
         )
 
