@@ -154,6 +154,7 @@ class CaptureService : Service() {
             this,
             onTap = { onIconTapped() },
             onGuide = { openGuide() },
+            onGrab = { startGrabText() },
             onClose = { closeEverything() },
         ).also { it.show() }
 
@@ -569,6 +570,62 @@ class CaptureService : Service() {
         releaseProjection()
         overlays?.destroy(); overlays = null
         super.onDestroy()
+    }
+
+    // ---------- lay chu trong vung tu chon ----------
+
+    private var selection: app.mangatrans.adapters.overlay.SelectionOverlay? = null
+
+    /**
+     * Nguoi dung khong go duoc chu Nhat. Chuc nang nay de ho **khoanh** lay mot
+     * cum chu tren truyen, app doc ra, roi ho nhet vao tu dien rieng — duong
+     * duy nhat ep duoc mo hinh dich theo y minh (F60).
+     */
+    private fun startGrabText() {
+        val ov = overlays ?: return
+        val src = source
+        if (src == null || !src.isAlive) { requestProjection(); return }
+        if (engines == null) { toast("Đang chuẩn bị, đợi một chút"); return }
+        if (selection != null) return
+
+        selection = app.mangatrans.adapters.overlay.SelectionOverlay(
+            this,
+            getSystemService(WINDOW_SERVICE) as WindowManager,
+            onPick = { box ->
+                selection?.hide(); selection = null
+                scope.launch { grabText(src, box) }
+            },
+            onCancel = { selection?.hide(); selection = null },
+        ).also { it.show() }
+        toast("Kéo một khung quanh chữ cần lấy")
+    }
+
+    private suspend fun grabText(src: MediaProjectionSource, boxOnScreen: app.mangatrans.domain.Box) {
+        setIconState(FloatingIcon.State.Reading)
+        val ocr = engines?.ocr
+        val shot = runCatching { src.capture() }.getOrNull()
+        if (shot == null || ocr == null) {
+            say(CaptureFailure.Timeout)
+            setIconState(FloatingIcon.State.Ready)
+            return
+        }
+        val bmp = shot.handle as Bitmap
+        // Anh chup da cat status bar, con khung nguoi dung keo la toa do man
+        // hinh — phai tru lai, neu khong vung doc bi lech xuong duoi.
+        val dy = statusBarHeight()
+        val box = app.mangatrans.domain.Box(
+            boxOnScreen.x1.coerceIn(0, bmp.width),
+            (boxOnScreen.y1 - dy).coerceIn(0, bmp.height),
+            boxOnScreen.x2.coerceIn(0, bmp.width),
+            (boxOnScreen.y2 - dy).coerceIn(0, bmp.height),
+        )
+        val text = runCatching { ocr.read(shot, box) }.getOrDefault("")
+        runCatching { bmp.recycle() }
+        setIconState(if (src.isAlive) FloatingIcon.State.Ready else FloatingIcon.State.NeedPermission)
+
+        if (text.isBlank()) { toast("Không đọc được chữ nào trong khung đó."); return }
+        // KHONG ghi `text` ra log — do la noi dung man hinh rieng cua nguoi dung.
+        startActivity(app.mangatrans.ui.GrabTextActivity.intent(this, text))
     }
 
     private fun openGuide() = startActivity(

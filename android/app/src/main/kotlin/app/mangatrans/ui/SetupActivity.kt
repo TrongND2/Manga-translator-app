@@ -65,6 +65,34 @@ class SetupActivity : AppCompatActivity() {
             visibility = android.view.View.GONE
             setOnClickListener { confirmDelete() }
         }
+        val keyInput = android.widget.EditText(this).apply {
+            hint = "Khoá Gemini (tuỳ chọn) — để trống là tắt"
+            setText(app.mangatrans.adapters.cloud.GeminiLookup.key(this@SetupActivity).orEmpty())
+            inputType = android.text.InputType.TYPE_CLASS_TEXT
+            textSize = 13f
+        }
+        val keyNote = TextView(this).apply {
+            text = "Chỉ dùng cho nút \"Hỏi Gemini\" khi bạn khoanh lấy một cụm chữ. " +
+                "Dịch trang vẫn chạy hoàn toàn trên máy, không gửi gì đi đâu.\n" +
+                "Lấy khoá miễn phí ở Google AI Studio."
+            textSize = 11f
+            alpha = 0.7f
+            setPadding(0, 8, 0, 8)
+        }
+        val keyBtn = Button(this).apply {
+            text = "Lưu khoá Gemini"
+            setOnClickListener {
+                app.mangatrans.adapters.cloud.GeminiLookup.setKey(
+                    this@SetupActivity, keyInput.text.toString()
+                )
+                Toast.makeText(
+                    this@SetupActivity,
+                    if (keyInput.text.isBlank()) "Đã xoá khoá — tắt tra cứu Gemini."
+                    else "Đã lưu khoá.",
+                    Toast.LENGTH_SHORT,
+                ).show()
+            }
+        }
         val redoBtn = Button(this).apply {
             text = "Dịch lại các trang đã dịch"
             setOnClickListener { confirmClearPageCache() }
@@ -78,6 +106,7 @@ class SetupActivity : AppCompatActivity() {
                 addView(explainer())
                 addView(status); addView(bar); addView(detail)
                 addView(actionBtn); addView(deleteBtn); addView(redoBtn)
+                addView(keyNote); addView(keyInput); addView(keyBtn)
             })
         })
 

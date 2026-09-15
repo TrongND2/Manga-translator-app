@@ -57,6 +57,14 @@ object Composition {
     class Engines(
         val pipeline: Pipeline,
         val translator: LiteRtLmTranslator,
+        /**
+         * Dung rieng cho chuc nang "lay chu trong vung tu chon" — doc mot vung
+         * nguoi dung khoanh, khong di qua ca day chuyen dich.
+         *
+         * ⚠️ Phien ONNX bi dong sau moi luot dich (F37) va tu nap lai khi can,
+         * nen goi truc tiep o day van an toan.
+         */
+        val ocr: MangaOcrOnnx,
         val typeface: Typeface,
         /** Font co du dau tieng Viet khong (FR-043). */
         val fontOk: Boolean,
@@ -158,7 +166,7 @@ object Composition {
         val fontOk = BubbleRenderer.supportsVietnamese(typeface)
         say(if (fontOk) "Font: có đủ dấu tiếng Việt ✓" else "CẢNH BÁO: font thiếu dấu tiếng Việt")
 
-        Engines(pipeline, translator, typeface, fontOk)
+        Engines(pipeline, translator, ocr, typeface, fontOk)
     }
 
     /**

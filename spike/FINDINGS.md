@@ -2436,6 +2436,56 @@ Sua dung cho (bo qua vung minh ve) thi do tre bien mat, ma do chinh xac con tang
 
 ---
 
+## F62 — Mat xich con thieu: khoanh lay chu de nap vao tu dien
+
+F60 ket luan: mo hinh **im lang bo bot** nhung cum no ngai dich, va **muc tu
+dien la duong duy nhat ep duoc**. Nhung ket luan do co mot lo hong thuc dung ma
+nguoi dung chi ra ngay:
+
+> *"nhieu tu tieng Nhat tren truyen toi khong biet viet"*
+
+Tu dien la duong duy nhat, ma nguoi dung **khong nhap noi** vao duong do. Chep
+tay tung net kanji la khong tuong. Nen tren ly thuyet co cach chua, tren thuc te
+thi khong.
+
+Da lam: giu icon -> `⌖` -> keo mot khung tren man hinh -> app chup, cat dung
+khung do, doc chu -> hien ra kem ba nut: **Sao chep** · **Hoi Gemini** · **Luu
+vao tu dien rieng**.
+
+Dung lai dung bo doc chu san co, khong them mo hinh nao. Do tren may, khoanh mot
+bong bat ky: `そ、溢れちゃりゅ…。` -> luu duoc vao tu dien o trang thai da xac
+nhan, ngay lan dich sau la co hieu luc.
+
+### Gemini: ngoai le DUY NHAT cua rang buoc offline, va pham vi da chot voi nguoi dung
+
+D1 (offline hoan toan) va D3 (khong lam che do cloud) van dung cho viec **dich
+trang**. Cho nay la ngoai le, va nguoi dung chon dung pham vi nay: *"offline van
+la mac dinh, cloud chi la cong cu tra tu"*.
+
+Rang buoc ky thuat da cai theo dung cau do:
+
+  - chi chay khi nguoi dung **tu bam** "Hoi Gemini";
+  - chi gui **dung cum chu vua khoanh** — vai chu, khong bao gio ca trang, khong
+    bao gio anh man hinh;
+  - khong co khoa thi khong goi gi, va app chay day du nhu cu.
+
+Vi sao gioi han o "mot cum tu" chu khong phai "ca trang": goi mien phi cua Google
+thuong cho phep dung du lieu de huan luyen. Gui mot cum tu le thi muc phoi bay
+nho hon han — va mot cum tu le cung it bi bo loc noi dung chan hon ca trang
+truyen nguoi lon.
+
+Loi tu may chu duoc chuyen **nguyen van** ra man hinh: sai khoa, het han muc va
+sai ten model la ba chuyen khac han nhau, nguoi dung can biet minh dinh phai cai
+nao. (Google doi ten model kha thuong xuyen — day la cho se hong truoc tien.)
+
+### Quy tac rut ra
+
+**Mot cach chua ma nguoi dung khong thao tac noi thi chua phai cach chua.** F60
+tim ra dung dap an va toi dung o do. Dap an do chi thanh that khi co duong de ho
+nhap chu Nhat vao ma khong can biet viet chu Nhat.
+
+---
+
 ## Còn nợ
 
 | # | Việc | Chặn gì | Trạng thái |

@@ -23,12 +23,15 @@ class OverlayController(
     private val ctx: Context,
     private val onTap: () -> Unit,
     private val onGuide: () -> Unit,
+    private val onGrab: () -> Unit,
     private val onClose: () -> Unit,
 ) : OverlayGate {
 
     private val wm = ctx.getSystemService(Context.WINDOW_SERVICE) as WindowManager
 
-    val icon = FloatingIcon(ctx, wm, onTap = onTap, onGuide = onGuide, onClose = onClose)
+    val icon = FloatingIcon(
+        ctx, wm, onTap = onTap, onGuide = onGuide, onGrab = onGrab, onClose = onClose,
+    )
 
     /**
      * ⚠️ App TU lam man hinh doi trong hai truong hop: dang liec nguyen ban

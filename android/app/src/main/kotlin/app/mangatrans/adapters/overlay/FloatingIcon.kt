@@ -22,6 +22,7 @@ class FloatingIcon(
     private val wm: WindowManager,
     private val onTap: () -> Unit,
     private val onGuide: () -> Unit,
+    private val onGrab: () -> Unit,
     private val onClose: () -> Unit,
 ) {
 
@@ -229,6 +230,7 @@ class FloatingIcon(
             iconPx = dp(ICON_DP), subPx = dp(SUB_DP),
             screenW = screenW, screenH = screenH,
             onGuide = { dismissSubIcons(); onGuide() },
+            onGrab = { dismissSubIcons(); onGrab() },
             onClose = { dismissSubIcons(); onClose() },
             onOutside = { dismissSubIcons() },
         ).also { it.show() }

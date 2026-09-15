@@ -121,6 +121,7 @@
             android:exported="false" />
 
         <!-- Story 3.10 — huong dan su dung, mo tu icon con hinh quyen sach. -->
+        <activity android:name=".ui.GrabTextActivity" android:exported="false" />
         <activity
             android:name=".ui.GuideActivity"
             android:label="Hướng dẫn sử dụng"

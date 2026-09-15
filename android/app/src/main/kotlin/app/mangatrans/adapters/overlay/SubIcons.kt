@@ -35,6 +35,7 @@ class SubIcons(
     private val screenW: Int,
     private val screenH: Int,
     private val onGuide: () -> Unit,
+    private val onGrab: () -> Unit,
     private val onClose: () -> Unit,
     private val onOutside: () -> Unit,
 ) {
@@ -49,6 +50,12 @@ class SubIcons(
     private val farGap = dp(28)
 
     private val book = circle("📖", 0xFF37474F.toInt(), onGuide)
+
+    /**
+     * Lay chu trong mot vung tu chon — de nhet vao tu dien rieng.
+     * Vo hai nhu 📖 nen duoc dung gan; ✕ van la cai duy nhat phai voi tay.
+     */
+    private val grab = circle("⌖", 0xFF00695C.toInt(), onGrab)
     private val close = circle("✕", 0xFFC62828.toInt(), onClose)
 
     /**
@@ -64,13 +71,15 @@ class SubIcons(
     }
 
     // Mo len tren hay xuong duoi tuy cho trong. Tinh mot lan luc tao.
-    private val downwards = anchorY + iconPx + nearGap + subPx * 2 + farGap < screenH
+    private val downwards = anchorY + iconPx + nearGap + subPx * 3 + nearGap + farGap < screenH
     private val xPos = if (anchorX < screenW / 2) anchorX else anchorX + iconPx - subPx
 
     private val bookY = if (downwards) anchorY + iconPx + nearGap
     else anchorY - nearGap - subPx
-    private val closeY = if (downwards) bookY + subPx + farGap
-    else bookY - farGap - subPx
+    private val grabY = if (downwards) bookY + subPx + nearGap
+    else bookY - nearGap - subPx
+    private val closeY = if (downwards) grabY + subPx + farGap
+    else grabY - farGap - subPx
 
     private var attached = false
 
@@ -79,19 +88,21 @@ class SubIcons(
         // Catcher vao truoc de no nam DUOI hai icon con.
         wm.addView(catcher, fullScreenParams())
         wm.addView(book, params(xPos, bookY))
+        wm.addView(grab, params(xPos, grabY))
         wm.addView(close, params(xPos, closeY))
         attached = true
     }
 
     fun hide() {
         if (!attached) return
-        listOf(close, book, catcher).forEach { runCatching { wm.removeView(it) } }
+        listOf(close, grab, book, catcher).forEach { runCatching { wm.removeView(it) } }
         attached = false
     }
 
     fun setVisible(visible: Boolean) {
         val v = if (visible) View.VISIBLE else View.INVISIBLE
         book.visibility = v
+        grab.visibility = v
         close.visibility = v
     }
 
