@@ -2160,6 +2160,42 @@ cho de tha vao moi thu minh nghi ra.
 
 ---
 
+## F55 — Vi du mau lam VO ca trang, va no khong phai chuyen do dai
+
+Nguoi dung xac nhan OCR da doc dung, con lai la *"cau lung cung"*. Voi mo hinh
+nho, **cho vi du** thuong an hon **ta luat** — nen thu them mot khoi vi du
+Nhat -> Viet.
+
+Ket qua, cung mot trang, dau ra tat dinh:
+
+```
+prompt 2.234 ky tu, KHONG vi du                  -> xong: ve 9 bubble
+prompt 2.507 ky tu, vi du TRUNG chu tren trang   -> xong: ve 0 bubble
+prompt 2.421 ky tu, vi du KHONG trung chu nao    -> xong: ve 0 bubble
+```
+
+Gia thuyet dau: vi du trung chu voi de bai nen mo hinh lan giua vi du va bong
+that. Thay bang vi du khong trung mot chu nao — **van hong**.
+
+Va do khong phai chuyen do dai: **3.377 ky tu toan van xuoi thi chay duoc**,
+ma 2.421 ky tu co khoi vi du thi hong. Thu hong khong phai so ky tu ma la
+**hinh dang** cua khoi vi du: no trong giong chinh cai viec dang giao, nen mo
+hinh bat chuoc dinh dang vi du (`Nhat -> "Viet"`) thay vi tra ve khoi JSON.
+
+Da go. Giu prompt 1.110 ky tu khong vi du.
+
+### Quy tac rut ra
+
+**"Cho vi du tot hon ta luat" la kinh nghiem cho mo hinh lon; o mo hinh 2 ti
+tham so co khuon dau ra chat, no lai la nguon nhieu.** Khi dau ra phai dung mot
+khuon cung, moi thu trong prompt trong giong "dau ra mau" deu canh tranh voi
+khuon that.
+
+**Va: ba lan thu prompt trong mot phien deu ket thuc bang 0/9.** Do la tin hieu
+du manh de dung, chu khong phai de thu tiep cach thu tu.
+
+---
+
 ## Còn nợ
 
 | # | Việc | Chặn gì | Trạng thái |
