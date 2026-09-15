@@ -1,5 +1,6 @@
 package app.mangatrans.pipeline
 
+import android.util.Log
 import app.mangatrans.domain.Bubble
 import app.mangatrans.domain.BubbleState
 import app.mangatrans.domain.PageEvent
@@ -57,6 +58,8 @@ class TranslateFilter(
      * lech. Doi lai la **dich duoc het trang** thay vi mat mot nua (F59).
      */
     private companion object {
+        const val TAG = "MangaTrans"
+
         /**
          * Bao nhieu bong moi lan goi LLM. Do tren M52: trang 18 bong thi mo
          * hinh dung o dung 10, hai luot lien tiep deu vay. Trang 12 bong thi
@@ -72,7 +75,21 @@ class TranslateFilter(
         }
         if (all.size > MAX_PER_CALL) {
             val merged = LinkedHashMap<Int, Bubble>()
-            all.chunked(MAX_PER_CALL).forEach { chunk ->
+            // ⚠️ KHONG dung `chunked(MAX_PER_CALL)` thang: no de lai mot dot le
+            // o cuoi. Trang 11 bong ra [10, 1], va **dot mot bong luon hong**
+            // — do tren may, hai lan thu lien tiep deu nhan 0 bong, roi bong
+            // do bi bo lai nguyen tieng Nhat khong mot loi bao:
+            //
+            //   Translating 10/10 · Translating 0/1 · Translating 0/1 · xong
+            //
+            // Bong le lai con la bong **mat het ngu canh**: no vua bi tach
+            // khoi dung cau dung truoc no trong mach thoai.
+            //
+            // Chia deu thi khong bao gio de ra dot le: 11 -> [6, 5], 18 ->
+            // [9, 9], 21 -> [7, 7, 7]. Khong dot nao vuot `MAX_PER_CALL`.
+            val parts = (all.size + MAX_PER_CALL - 1) / MAX_PER_CALL
+            val per = (all.size + parts - 1) / parts
+            all.chunked(per).forEach { chunk ->
                 val ids = chunk.map { it.id }.toSet()
                 val sub = job.withBubbles(
                     job.bubbles.map {
@@ -174,6 +191,20 @@ class TranslateFilter(
             // muc hong o cuoi khong lam nhung muc da kiem tro nen dang ngo.
             //
             // Vut 10 ban dich dung vi mot muc hong la danh doi sai phia (F57).
+            // Mot dot nhan thieu bong la chuyen tung bi NUOT HOAN TOAN: khi
+            // dang chia dot (`sink != null`) thi khong co `PageRejected` nao
+            // duoc phat, nen bong bi bo lai nguyen tieng Nhat ma khong ai bao
+            // gi. Ghi ra de lan sau con lan duoc.
+            //
+            // CHI ghi so dem va ma ly do — `mismatch` chua id chu khong chua
+            // chu da OCR, nen khong lo noi dung man hinh nguoi dung ra log.
+            if (accepted.size < truth.size) Log.i(
+                TAG,
+                "dot nhan ${accepted.size}/${truth.size} bong" +
+                    " (lan ${attempt + 1}/${cfg.translateRetries + 1})" +
+                    if (reason != null) " — $reason" else " — mo hinh dung som",
+            )
+
             val lastTry = attempt == cfg.translateRetries
             if (lastTry && accepted.isNotEmpty()) {
                 if (sink != null) { sink.putAll(accepted); return }

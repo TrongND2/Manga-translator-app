@@ -241,9 +241,16 @@ lịch sự/xa lạ → tôi-anh, tôi-ông, em-anh · thân → tớ-cậu · s
 Ai dùng 小生 / ござる / ませぬ là giọng cổ trang khiêm nhường → "tiểu sinh", "tại hạ"; đã chọn giọng nào thì mọi câu của người đó giữ giọng đó.
 
 GIỮ NHỊP NÓI:
-Nói lắp → dịch ra nói lắp (「そ、それは」 → "C-cái đó là"). Dấu 「…」 là câu bỏ lửng: giữ "..." và ĐỪNG viết nốt. Bubble chỉ có mẩu câu cụt thì dịch đúng mẩu đó, ĐỪNG bịa thêm.
+Nói lắp (có dấu phẩy ngay sau âm đầu) → lặp phụ âm đầu của CHÍNH từ tiếng Việt mình vừa chọn rồi thêm gạch nối. Dấu 「…」 là câu bỏ lửng: giữ "..." và ĐỪNG viết nốt. Bubble chỉ có mẩu câu cụt thì dịch đúng mẩu đó, ĐỪNG bịa thêm.
+Tiếng thở, tiếng rên (はぁ・ふぅ・んっ・あぁ) thì phiên âm ra tiếng thở, ĐỪNG dịch nghĩa — 「はぁ」 là thở dốc chứ không phải "Hả?". Giữ nguyên ♡ ♪ ★ ở đúng chỗ chúng đứng.
+
+AI LÀM CHO AI:
+「〜て貰う」「〜てくれる」 là NGƯỜI KIA làm cho mình; 「〜てあげる」 là mình làm cho người kia. Đừng đảo ngược chiều.
 
 ĐÚNG MỨC ĐỘ:
 Nguyên bản thô tục tới đâu thì dịch thô tới đó — không nói tránh, không bỏ bớt. Nguyên bản nhã thì dịch nhã.
 
-Không để sót chữ Nhật nào. Tên riêng phiên âm (瑠璃丸 → Rurimaru); danh từ thường thì dịch (赤ちゃん → "em bé"). Bỏ -san/-kun/-chan, chuyển sắc thái vào xưng hô. Tra glossary trước khi đoán thành ngữ. Ngắn gọn cho vừa bóng thoại, không chú thích. Viết theo trật tự tiếng Việt, đừng bám trật tự tiếng Nhật."""
+DÙNG GLOSSARY ĐÚNG CHỖ:
+Chỉ thay một mục glossary khi bubble chứa ĐÚNG chuỗi chữ Nhật của mục đó. Giống âm gần gần thì KHÔNG phải — 「りゅ」 trong 「溢れちゃってりゅ」 là cách nói nhịu của 「る」, không phải tên người. Tuyệt đối đừng chèn tên nhân vật vào bubble không hề có tên đó.
+
+Không để sót chữ Nhật nào. Tên riêng thì phiên âm theo âm Nhật; danh từ thường thì dịch nghĩa. Bỏ -san/-kun/-chan, chuyển sắc thái vào xưng hô. Tra glossary trước khi đoán thành ngữ. Ngắn gọn cho vừa bóng thoại, không chú thích. Viết theo trật tự tiếng Việt, đừng bám trật tự tiếng Nhật."""

@@ -2566,6 +2566,222 @@ Doc no ra va tu chua duoc thi nguoi dung khong bao gio phai biet co chuyen gi.
 suyt de lai trong ma mot loi giai thich cho mot chuyen khong xay ra.
 ---
 
+## F64 — Bo canh trang tu huy luot dich sap xong: o bi bong de len MOT PHAN
+
+Nguoi dung: *"dich sai voi dich chua het thi tu dung roi"*. Log lay ra ba luot
+lien tiep, ca ba deu chet o gan cuoi:
+
+```
+17:31:08  Translating 1/4
+17:31:09  man hinh doi (khac 0.09) — dung dich      <- 0,7 giay sau
+17:32:38  Translating 6/10
+17:32:40  man hinh doi (khac 0.95)
+17:34:24  Translating 8/10
+17:34:25  man hinh doi (khac 0.05)                  <- DUNG BANG nguong
+```
+
+Khong phai nguoi dung lat trang. Bo canh trang cua F61 dang bat nham **chinh
+ban dich app vua ve**.
+
+### Vi sao mat na khong che duoc
+
+F61 che vung bong thoai bang `Float.NaN` roi chi so phan con lai. Cach danh dau
+o bi che la:
+
+```kotlin
+exclude.any { cx in it.x1..it.x2 && cy in it.y1 + top..it.y2 + top }
+```
+
+`cx, cy` la **tam** cua o. Luoi la 16 x 32 nen moi o rong 67 x 75 px, con bong
+thoai thi vien cong queo. Rat nhieu o co tam nam ngoai bong ma van bi bong de
+len mot phan — nhung o do khong bi che, va gia tri cua chung doi ngay khi app
+ve bong len.
+
+Sai so moi o nho, nhung cong lai theo so bong da ve. Nen loi **chi lo ra o cuoi
+trang**, dung luc sap xong — nghia la luc dat nhat.
+
+Chua: danh dau o bi che khi **o va vung che cham nhau**, kem no them 8 px cho
+vien va bong do.
+
+### Cai bay thu hai: duong du phong quay ve so CA man hinh
+
+```kotlin
+if (live.size < MIN_LIVE_CELLS) return frameSignature(bmp, cropTopPx, emptyList())
+```
+
+Y dinh thi hop ly — che nhieu qua thi so sanh vo nghia. Nhung **luc duy nhat
+vung che nuot het man hinh la luc app da ve gan xong ca trang**, tuc la luc man
+hinh khac anh goc nhieu nhat. Quay ve so ca man hinh dung luc do thi chac chan
+vuot nguong.
+
+Chua: tra `null`, va nguoi goi **khong ket luan gi ca**. Khong biet thi dung im
+con hon doan — doan sai o day la vut ca luot dich.
+
+### Cai bay thu ba: nhip hoi dau tien roi vao luc lop phu dang dung
+
+Do sau khi chua hai cho tren, van con dung mot nhip le:
+
+```
+18:03:40.479  canh trang: d=0.1614 live=485 bo-qua=2
+18:03:41.126  canh trang: d=0.0024 live=485 bo-qua=2
+```
+
+Hai nhip **cung mat na** (`live` va `bo-qua` y het) ma d lech 60 lan, roi tro
+lai binh thuong. Do la khung hinh dang do, bat duoc dung luc cua so lop phu vua
+duoc them vao.
+
+Nguyen nhan o thu tu goi: `watchForPageChange` duoc bat **truoc** `addBubble`,
+nen no chay truoc khi co `selfChanging` che chan. Chua: bat bo canh SAU khi bong
+dau tien da len man hinh. Co `selfChanging` khi do dang gio va nhip do bi bo qua
+han.
+
+### Do lai: nhieu va tin hieu cach nhau 250 lan
+
+Duong do gac sau co `/data/local/tmp/mangatrans-diag`, chi ghi so — khong ghi
+noi dung man hinh.
+
+| | so nhip | d |
+|---|---|---|
+| App dang ve, trang dung yen (ca trang 11 bong) | 12 | **max 0.0038** |
+| Nguoi dung lat trang that | 3 | **0.94 – 1.15** |
+| Nguong dang dat | | **0.05** |
+
+Nguong nam giua, cao gap 13 lan nhieu va thap gap 19 lan tin hieu. Truoc khi
+chua, sai so do bong de len mot phan day d len tan 0.05–0.09 — tuc la **nguong
+nam ngay trong dam nhieu**, va do la ly do that su chu khong phai nguong dat sai.
+
+O con song: 328–485 tren tong 512, khong lan nao cham nguong bo cuoc 80. Nghia
+la duong du phong o tren **chua bao gio can den** tren trang nay — no chi nam
+do va cho de pha.
+
+### Them mot lop: phai vuot nguong HAI NHIP LIEN TIEP
+
+Lat trang la chuyen keo dai; mot nhip le vuot nguong hau het la nhieu. Gia phai
+tra do duoc: **208 ms**.
+
+```
+18:13:33.442  bam phim lat trang
+18:13:34.334  d=0.9995   (nhip 1)
+18:13:34.542  d=0.9424   (nhip 2) -> dung dich
+```
+
+Toan bo do tre tu luc lat den luc go lop phu: **1,10 giay**. Con rat xa con so
+4 giay ma F61 phai chua.
+
+### Quy tac rut ra
+
+**Duong du phong chay dung luc hong nhat la duong du phong lam hong them.** Cai
+`MIN_LIVE_CELLS` fallback duoc viet ra de "cho chac", va no chi kich hoat dung
+trong hoan canh ma no chac chan tra loi sai.
+
+**Va: khi mot phep so dung luoi o, hay hoi o do la DIEM hay la VUNG.** Ca lo
+loi nay chi la mot cho lay tam o lam dai dien cho ca o rong 67 x 75 px.
+
+---
+
+## F65 — Mo hinh CHEP VI DU trong prompt ra ban dich, va dot le mot bong luon hong
+
+Do tren dung trang nguoi dung dang mo (11 bong, truyen mau), ba lan chay lien
+tiep, moi lan doi mot thu.
+
+### 1. Dot le mot bong: dich 0/1, hai lan, roi bi bo im lang
+
+`all.chunked(MAX_PER_CALL)` voi 11 bong ra `[10, 1]`. Dot mot bong khong bao gio
+thanh cong:
+
+```
+Translating 10/10 · Translating 0/1 · Translating 0/1 · xong: ve 10 bubble
+```
+
+Bong thu 11 bi de nguyen tieng Nhat. **Khong mot loi bao nao** — vi khi dang
+chia dot thi `translateOnce` ghi vao `sink` chu khong phat `PageRejected`, nen
+duong bao loi khong chay.
+
+Hai cai sai chong len nhau: dot le vua **mat het ngu canh** (no bi tach khoi
+dung cau dung truoc no trong mach thoai), vua **im lang khi hong**.
+
+Chua: chia deu thay vi cat 10 roi lay phan du.
+
+```kotlin
+val parts = (all.size + MAX_PER_CALL - 1) / MAX_PER_CALL
+val per   = (all.size + parts - 1) / parts
+all.chunked(per)
+```
+
+11 -> `[6, 5]` · 18 -> `[9, 9]` · 21 -> `[7, 7, 7]`. Khong dot nao vuot
+`MAX_PER_CALL`, va khong bao gio con dot le. Do lai: **11/11 bong**, ca hai dot
+deu du. Kem mot dong log khi mot dot nhan thieu bong, de lan sau con lan duoc.
+
+### 2. Mo hinh chep thang chuoi vi du trong SYSTEM prompt ra ban dich
+
+Day la phat hien dang gia nhat cua lan do nay, va no giai thich **hai loi khac
+han nhau** ma toi tuong la hai chuyen.
+
+**Loi a — ten nhan vat moc tu hu khong.** 「溢れちゃってりゅ…♡」 ra *"Tran ra roi
+**Rurimaru**..."*. Trong cau khong he co ten ai. 「りゅ」 la cach noi nhiu cua
+「る」.
+
+Toi tuong la glossary khop chuoi bay ba. Khong phai: glossary co muc 「瑠璃丸」,
+nhung SYSTEM prompt cung co dung dong nay —
+
+```
+Ten rieng phien am (瑠璃丸 → Rurimaru)
+```
+
+Mo hinh 2 ti tham so duoc moi san chuoi `Rurimaru`, gap mot am gan gan la no
+tha ra.
+
+**Loi b — noi lap thanh mot cau khac han.** 「も、申し訳御座いませぬ…!」 ra
+*"**C-cai do la**, toi xin loi..."*. Cau goc khong co "cai do" nao. Va SYSTEM
+prompt co:
+
+```
+Noi lap → dich ra noi lap (「そ、それは」 → "C-cai do la")
+```
+
+Lai la chep nguyen chuoi vi du. Cung mot co che, khac cho.
+
+**Chua:** bo MOI vi du chep duoc ra khoi SYSTEM, thay bang quy tac truu tuong
+("lap phu am dau cua CHINH tu tieng Viet minh vua chon roi them gach noi"). Do
+lai tren cung trang:
+
+| | truoc | sau |
+|---|---|---|
+| 溢れちゃってりゅ…♡ | "Tran ra roi Rurimaru...♡" | "Tran qua roi...♡" |
+| も、申し訳御座いませぬ…! | "C-cai do la, toi xin loi..." | "Toi, toi xin loi...!" |
+
+### 3. Ba luat them, hai cai an
+
+- **Tieng tho khong phai tu co nghia.** 「はぁ♡」 tung ra *"Ha..."* (hieu thanh
+  "Ha?" = gi co?). Them luat phien am tieng tho -> ra `"Hã♡"`.
+- **Giu ky hieu ♡ ♪ ★.** Chung bi rung gan het o lan do thu hai.
+- **Chieu cua 〜て貰う／〜てくれる.** 「取って貰うからね?」 van ra *"Toi se nhan
+  lay"* — **nguoc chieu**, va luat viet vao prompt **khong an**. Ghi lai la con
+  no chu khong ghi la da chua.
+
+### Con lai chua chua duoc (do that, khong phai suy doan)
+
+| Bong | Van sai the nao |
+|---|---|
+| 取って貰うからね? | Nguoc chieu nguoi lam / nguoi nhan |
+| どれだけ射精せば… | Ra "phong ra" thay vi "xuat tinh" — mo hinh van noi tranh du co luat "dung muc do" |
+| 転校前に…こんなふうにして | Them "thi sao" ma cau goc khong co |
+
+Ba cai nay nam o **kha nang cua mo hinh 2 ti tham so**, khong phai o prompt.
+Duong vong dung dan cho chung la muc tu dien rieng (F60), va do chinh la ly do
+`⌖` ton tai (F62).
+
+### Quy tac rut ra
+
+**Vi du trong prompt la con dao hai luoi voi mo hinh nho: no hoc CHUOI chu khong
+hoc QUY TAC.** Mot vi du cang cu the thi cang de bi chep nguyen van ra dau ra.
+Voi mo hinh nho, ta quy tac truu tuong an toan hon mot vi du hay.
+
+**Va: dung lay ten that trong du lieu cua nguoi dung lam vi du trong prompt.**
+`瑠璃丸 → Rurimaru` vua la vi du vua la mot muc glossary that — hai vai tro do
+chong nhau va sinh ra ban dich bia.
+---
+
 ## Còn nợ
 
 | # | Việc | Chặn gì | Trạng thái |

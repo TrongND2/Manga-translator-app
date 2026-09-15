@@ -171,9 +171,27 @@ object PageHash {
 
     /**
      * It hon chung nay o con lai thi vung bo qua da nuot gan het man hinh —
-     * khi do so sanh khong con y nghia, quay ve so CA man hinh.
+     * khi do so sanh khong con y nghia nua, va ham tra `null`.
+     *
+     * ⚠️ Truoc day cho nay **quay ve so CA man hinh**. Do la mot cai bay: luc
+     * duy nhat vung bo qua nuot het man hinh la luc app da ve gan xong ca
+     * trang, tuc la luc man hinh KHAC anh goc nhieu nhat. So ca man hinh khi
+     * do thi chac chan vuot nguong -> tu huy dung luc sap xong. Do duoc:
+     * `Translating 8/10` roi `man hinh doi (khac 0.05)` ngay nhip sau.
+     *
+     * Tra `null` de nguoi goi **khong ket luan gi ca** thi dung hon: khong
+     * biet thi dung im, dung doan.
      */
     private const val MIN_LIVE_CELLS = 80
+
+    /**
+     * No them bao nhieu pixel quanh moi vung bo qua.
+     *
+     * Bong thoai ve ra co vien va bong do tran ra ngoai khung `drawnRect` mot
+     * chut. Khong no ra thi dung vien do roi vao o "con song" va bi tinh la
+     * man hinh doi.
+     */
+    private const val EXCLUDE_PAD_PX = 8
 
     /**
      * Chu ky do xam cua khung hinh, **da chuan hoa nen bat bien voi do sang**.
@@ -195,7 +213,7 @@ object PageHash {
      * hinh doi that nen chu ky doi that.
      */
     fun frameSignature(bmp: Bitmap, cropTopPx: Int): FloatArray =
-        frameSignature(bmp, cropTopPx, emptyList())
+        frameSignature(bmp, cropTopPx, emptyList())!!
 
     /**
      * @param exclude nhung vung **BO QUA** khi so sanh, toa do trong anh da cat
@@ -210,14 +228,40 @@ object PageHash {
      * Bo qua dung vung bong thoai thi phan con lai — tranh, nen — la cho app
      * KHONG BAO GIO dong toi. Doi mot pixel o do nghia la nguoi dung that su
      * doi man hinh, va bat duoc ngay o nhip hoi dau tien (F61).
+     *
+     * ⚠️ Mot o bi bo qua khi **o va vung bo qua cham nhau**, chu khong phai
+     * khi TAM o roi vao vung bo qua. Cho nay tung sai va no sai theo kieu kho
+     * thay nhat: moi o rong 67 x 75 px con bong thoai thi vien cong queo, nen
+     * rat nhieu o co tam nam ngoai bong ma van bi bong de len mot phan. Nhung
+     * o do khong bi bo qua, va gia tri cua chung doi ngay khi app ve bong len
+     * — dung ba lan do duoc la `Translating 6/10` / `8/10` roi tu huy.
+     *
+     * So o bi bo qua tang len (tu 9 diem mau thanh ca o + no them
+     * [EXCLUDE_PAD_PX]) nhung do la danh doi dung huong: bo qua thua mot o
+     * chi lam cham phat hien lat trang vai chuc mili giay, con bo qua thieu
+     * mot o thi **vut ca luot dich**.
      */
-    fun frameSignature(bmp: Bitmap, cropTopPx: Int, exclude: List<Box>): FloatArray {
+    fun frameSignature(bmp: Bitmap, cropTopPx: Int, exclude: List<Box>): FloatArray? {
         val top = cropTopPx.coerceIn(0, maxOf(0, bmp.height - 1))
         val h = bmp.height - top
         val out = FloatArray(COLS * ROWS)
         var i = 0
         for (r in 0 until ROWS) {
+            // Bien cua o, theo toa do anh. Dung chinh cong thuc cua diem mau
+            // nen khong lech: diem mau dau tien cua o r la `r*SUB`.
+            val cellY0 = top + ((r * SUB).toLong() * h / (ROWS * SUB)).toInt()
+            val cellY1 = top + (((r + 1) * SUB).toLong() * h / (ROWS * SUB)).toInt()
             for (c in 0 until COLS) {
+                val cellX0 = ((c * SUB).toLong() * bmp.width / (COLS * SUB)).toInt()
+                val cellX1 = (((c + 1) * SUB).toLong() * bmp.width / (COLS * SUB)).toInt()
+                // Vung bo qua nam trong khung DA CAT, nen cong `top` vao truc y.
+                val hidden = exclude.any {
+                    cellX0 <= it.x2 + EXCLUDE_PAD_PX && cellX1 >= it.x1 - EXCLUDE_PAD_PX &&
+                        cellY0 <= it.y2 + top + EXCLUDE_PAD_PX &&
+                        cellY1 >= it.y1 + top - EXCLUDE_PAD_PX
+                }
+                if (hidden) { out[i++] = Float.NaN; continue }
+
                 var sum = 0f
                 var n = 0
                 for (sy in 0 until SUB) {
@@ -233,17 +277,11 @@ object PageHash {
                         }
                     }
                 }
-                val cx = ((c * SUB + 1).toLong() * bmp.width / (COLS * SUB)).toInt()
-                val cy = top + ((r * SUB + 1).toLong() * h / (ROWS * SUB)).toInt()
-                out[i++] = when {
-                    exclude.any { cx in it.x1..it.x2 && cy in it.y1 + top..it.y2 + top } -> Float.NaN
-                    n == 0 -> 0f
-                    else -> sum / n
-                }
+                out[i++] = if (n == 0) 0f else sum / n
             }
         }
         val live = out.filter { !it.isNaN() }
-        if (live.size < MIN_LIVE_CELLS) return frameSignature(bmp, cropTopPx, emptyList())
+        if (live.size < MIN_LIVE_CELLS) return null
         var mean = 0f
         for (v in live) mean += v
         mean /= live.size

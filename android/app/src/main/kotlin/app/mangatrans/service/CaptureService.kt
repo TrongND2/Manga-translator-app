@@ -106,6 +106,19 @@ class CaptureService : Service() {
         private const val WATCH_POLL_MS = 150L
 
         /**
+         * Phai vuot nguong BAO NHIEU nhip LIEN TIEP moi ket luan la doi trang.
+         *
+         * Lat trang la chuyen keo dai — trang moi nam do cho den khi nguoi dung
+         * lat tiep. Con mot nhip le vuot nguong thi hau het la nhieu: dung luc
+         * app ve mot bong thoai, mot frame bat duoc giua chung, hay mot cai
+         * toast luot qua.
+         *
+         * Gia phai tra la 150 ms cham hon — khong dang ke so voi 4 giay cua ban
+         * truoc F61, va doi lai la khong vut ca luot dich vi mot nhip nhieu.
+         */
+        private const val PAGE_CHANGE_CONFIRM = 2
+
+        /**
          * Icon noi dang bat hay khong — man hinh chinh dung de doi mot nut duy
          * nhat giua Bat va Tat.
          *
@@ -342,19 +355,26 @@ class CaptureService : Service() {
                     }
 
                     is PageEvent.BubbleReady -> {
+                        val first = drawn == 0
                         // Lan dau co bubble moi dung anh chup lam nen — truoc do
                         // chua biet co ve duoc gi khong, ma AD-9 cam to nen som.
-                        if (drawn == 0) {
-                            ov.beginPage(bitmap, frameHash, statusBarHeight(), tf)
-                            // Bat bo canh NGAY tu bong dau tien, khong doi ca
-                            // trang xong. Nguoi dung lat trang / chuyen app giua
-                            // chung thi phai dung ngay, neu khong ban dich cu
-                            // nam de len man hinh moi (F61).
-                            watchForPageChange(src, bitmap, drawnRects)
-                        }
+                        if (first) ov.beginPage(bitmap, frameHash, statusBarHeight(), tf)
                         drawn++
                         drawnRects += app.mangatrans.pipeline.BubbleRenderer.drawnRect(ev.bubble)
                         ov.addBubble(ev.bubble)
+                        // Bat bo canh NGAY tu bong dau tien, khong doi ca trang
+                        // xong. Nguoi dung lat trang / chuyen app giua chung thi
+                        // phai dung ngay, neu khong ban dich cu nam de len man
+                        // hinh moi (F61).
+                        //
+                        // ⚠️ Nhung bat SAU `addBubble`, khong phai truoc. Bat
+                        // truoc thi nhip hoi dau tien roi dung luc cua so lop
+                        // phu **dang duoc them vao** — bat duoc mot khung dang
+                        // do. Do duoc dung mot nhip nhu the: d=0.1614 (gap 60
+                        // lan sang nhieu thuong), nhip ke tiep 0.0024. Bat sau
+                        // `addBubble` thi co `selfChanging` dang gio, nhip do
+                        // bi bo qua han.
+                        if (first) watchForPageChange(src, bitmap, drawnRects)
                     }
 
                     // AD-17 — go bubble da ve, chu Nhat goc hien lai nguyen ven.
@@ -447,6 +467,14 @@ class CaptureService : Service() {
         }
     }
 
+    /**
+     * Co chan duong chan doan — chi `adb` tao duoc file nay, nguoi dung binh
+     * thuong khong bat nham. Doc mot lan moi lan hoi chu khong cache: bat/tat
+     * giua chung phai an ngay.
+     */
+    private val diagOn: Boolean
+        get() = java.io.File("/data/local/tmp/mangatrans-diag").exists()
+
     private fun dumpForDiagnosis(job: app.mangatrans.domain.PageJob) {
         if (!java.io.File("/data/local/tmp/mangatrans-diag").exists()) return
         scope.launch(Dispatchers.IO) {
@@ -511,6 +539,8 @@ class CaptureService : Service() {
             // doi man hinh, va bat ngay o nhip hoi dau tien.
             var known = -1
             var baseline: FloatArray? = null
+            /** So nhip LIEN TIEP da vuot nguong. */
+            var hits = 0
             while (isActive && src.isAlive) {
                 val ov = overlays ?: return@launch
                 // Dang tu an lop phu de chup — bo qua nhip nay.
@@ -523,13 +553,28 @@ class CaptureService : Service() {
                 if (boxes.size != known) {
                     known = boxes.size
                     baseline = PageHash.frameSignature(page, 0, boxes)
+                    // Moc vua doi thi chuoi dang dem khong con y nghia.
+                    hits = 0
                 }
 
                 val now = src.peekFrameSignature(boxes)
                 val base = baseline
+                // `null` = vung bo qua da nuot gan het man hinh, hoac chua bat
+                // duoc frame nao. KHONG ket luan gi ca — dung im con hon doan,
+                // vi doan sai o day la vut ca luot dich sap xong.
                 if (now != null && base != null) {
                     val d = PageHash.distance(base, now)
-                    if (d > PAGE_CHANGE_THRESHOLD) {
+                    // Duong DO nguong, khong phai log thuong. Chi so do — khong
+                    // co noi dung man hinh — va chi chay khi co co adb, vi no
+                    // ghi 7 dong moi giay.
+                    if (diagOn) Log.i(
+                        TAG,
+                        "canh trang: d=%.4f live=%d bo-qua=%d".format(
+                            d, now.count { !it.isNaN() }, boxes.size,
+                        ),
+                    )
+                    if (d > PAGE_CHANGE_THRESHOLD) hits++ else hits = 0
+                    if (hits >= PAGE_CHANGE_CONFIRM) {
                         Log.i(TAG, "man hinh doi (khac %.2f) — dung dich, go lop phu".format(d))
                         running?.cancel()
                         ov.clearPage()
@@ -539,6 +584,8 @@ class CaptureService : Service() {
                         )
                         return@launch
                     }
+                } else {
+                    hits = 0
                 }
                 delay(WATCH_POLL_MS)
             }
