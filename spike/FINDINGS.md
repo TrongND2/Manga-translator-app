@@ -1583,6 +1583,77 @@ Sửa: vứt frame cũ **trước khi** ẩn lớp phủ (`drainFrames()` ở đ
 
 ---
 
+## F43 — Bản dịch tự biến mất, và nguyên nhân tôi nêu lúc đầu là sai
+
+Sau khi sửa F41/F42, bản dịch đứng được 65 giây rồi biến mất. Trong log, ngay trước đó một giây:
+
+```
+01:46:04  I/DeviceType: isSupportBrightnessControl: context : com.android.systemui...
+01:46:05  I/CaptureSvc: noi dung ben duoi doi — go lop phu
+```
+
+Tôi đọc hai dòng đó rồi **nói với người dùng rằng màn hình tự giảm sáng làm xoá bản dịch**. Hai dòng log cách nhau một giây là tương quan, không phải nhân quả — và lần này tương quan dẫn sai.
+
+Đi đo thì: **đổi độ sáng hệ thống không sinh frame nào cả.** Độ sáng do phần cứng màn hình áp, khung hình không được vẽ lại, nên `VirtualDisplay` không có gì để phát. Đặt ngưỡng lên 999 (chỉ đo, không xoá) rồi hạ độ sáng từ 18 xuống 30 và ngược lại: **không một dòng `khac` nào**. Giả thuyết chết.
+
+### Nguyên nhân thật: mốc so sánh bị lấy nhằm lúc màn hình chưa yên
+
+Bộ canh trang lấy **frame đầu tiên nhìn thấy được** làm mốc, 700 ms sau khi vẽ xong. Nếu lúc đó màn hình còn đang ổn định — app đọc truyện còn dựng hình sau cú vuốt, hoặc chính lớp phủ của ta còn đang hiện ra — thì mốc là một khung hình **giữa chừng**. Khung hình yên sau đó khác mốc, và bản dịch bị xoá oan.
+
+Đo được đúng cảnh đó:
+
+```
+07:15:22  xong: ve 6 bubble
+07:15:27  noi dung ben duoi doi (khac 0.43) — go lop phu     <- 5,5 giây sau
+```
+
+Còn khi màn hình đã yên sẵn từ trước, chụp hai ảnh cách nhau 6 giây thì **trùng khít từng pixel**, không có gì để xoá cả. Cùng một đoạn mã, hai kết cục — khác nhau ở chỗ lúc chốt mốc màn hình yên hay chưa.
+
+### Hai thay đổi
+
+**1. Chữ ký bất biến với độ sáng, thay cho mã băm chính xác.**
+`frameHash` là SHA-1: đổi một bit là khác. Thay bằng chữ ký độ xám 16×32 ô, **chuẩn hoá về trung bình 0 và độ lệch chuẩn 1**. Chuẩn hoá như thế triệt tiêu mọi phép biến đổi tuyến tính `v -> a*v + b`, tức mọi thay đổi độ sáng/tương phản đều đều.
+
+Giữ lại dù giả thuyết ban đầu sai, vì nó vẫn đúng cho những thứ có thật: chế độ ban đêm bật lên, lọc ánh sáng xanh, màn hình tự chỉnh theo môi trường.
+
+**2. "Lên nòng" sau khi màn hình đã yên.**
+Còn frame chạy về thì chỉ cập nhật mốc, chưa so sánh gì. Yên `ARM_QUIET_MS = 1.000 ms` mới chốt mốc và bắt đầu canh.
+
+### Ngưỡng — đo, không đoán
+
+| tình huống | khoảng cách |
+|---|---|
+| giảm sáng còn 80% | 0,0052 |
+| giảm sáng còn 60% | 0,0030 |
+| giảm sáng còn 40% | 0,0132 |
+| **giảm sáng còn 25%** | **0,0202** ← "giống" tệ nhất |
+| — ngưỡng chọn — | **0,05** |
+| cùng trang, đã vẽ bản dịch | 0,0947 |
+| **lật sang trang khác (đo trên máy)** | **0,99 – 1,06** |
+
+Cách trường hợp "giống" tệ nhất 2,5 lần, cách cú lật trang 20 lần. Khi phải chọn lệch về phía nào thì chọn phía **xoá oan**: AD-12 nói bản dịch trang cũ nằm đè lên trang mới là lỗi nặng nhất của tầng hiển thị.
+
+Kiểm chứng hai chiều trên máy, app đọc truyện thật:
+
+```
+đứng yên 45 giây      -> không xoá
+vuốt sang trang mới   -> "noi dung ben duoi doi (khac 0.99) — go lop phu"
+```
+
+### Một lỗi đo lường của chính tôi, đáng ghi lại
+
+Lần đo đầu, cú lật trang cho `khac 0.0000` — vô lý, vì ảnh chụp cho thấy màn hình đổi 95,6%. Lý do: tôi vuốt từ toạ độ **nằm trong một bóng thoại**, mà cửa sổ bản dịch nhận chạm nên nuốt luôn cú vuốt — trang không hề lật. Phép đo đúng, thao tác sai.
+
+Kèm theo đó là một hệ quả có thật cho người dùng: **vuốt bắt đầu từ trong bóng thoại thì app đọc truyện không nhận được.** Đây là đánh đổi đã biết và đã chấp nhận của thiết kế chạm (xem `TranslationOverlay`), nhưng từ F39 thì vùng nuốt chạm đúng bằng vùng bóng thoại nên nó rõ hơn trước.
+
+### Quy tắc rút ra
+
+**Hai dòng log cách nhau một giây là tương quan, không phải nhân quả.** Tôi đã nói nguyên nhân cho người dùng trước khi đi đo, và nguyên nhân đó sai. Nối tiếp F36 (tin vào một lời giải thích khớp triệu chứng) và F39 (hai giả thuyết hợp lý đều chết). Cùng một cái bẫy, lần này khoác áo "log nói thế".
+
+**Và: một phép đo cho kết quả vô lý thì nghi thao tác trước, đừng nghi phép đo.** `khac 0.0000` cho một màn hình đổi 95,6% là vô lý — chỗ hỏng nằm ở cú vuốt, không nằm ở công thức.
+
+---
+
 ## Còn nợ
 
 | # | Việc | Chặn gì | Trạng thái |

@@ -70,6 +70,41 @@ class CaptureService : Service() {
         private const val POLL_MS = 350L
 
         /**
+         * Khac bao nhieu thi coi la "nguoi dung sang trang".
+         *
+         * Don vi la do lech chuan cua chinh khung hinh (xem
+         * `PageHash.frameSignature`), nen khong phu thuoc do sang hay bo truyen.
+         *
+         * **Do that, khong doan** (F43):
+         * ```
+         *   giam sang con 80%            0.0052
+         *   giam sang con 60%            0.0030
+         *   giam sang con 40%            0.0132
+         *   giam sang con 25%            0.0202   <- truong hop "giong" te nhat
+         *   ---------------------------------------------------- nguong 0.05
+         *   cung trang, da ve ban dich   0.0947
+         *   lat sang trang khac (tren may) 1.00 - 1.06
+         * ```
+         *
+         * 0.05 cach cai te nhat 2,5 lan va cach cu lat trang 20 lan. Ha xuong
+         * thi ban dich bi xoa oan; nang len thi ban dich trang cu nam de len
+         * trang moi — AD-12 goi do la loi nang nhat cua tang hien thi, nen khi
+         * phai chon thi chon phia xoa oan.
+         */
+        private const val PAGE_CHANGE_THRESHOLD = 0.05f
+
+        /**
+         * Man hinh phai YEN bao lau thi moc so sanh moi duoc chot.
+         *
+         * Khong co cho nay thi moc co the bi lay nham mot frame giua chung —
+         * app doc truyen con dang dung hinh sau cu vuot, hoac lop phu cua chinh
+         * ta con dang hien ra. Frame yen sau do khac moc, va ban dich bi xoa
+         * oan ngay vai giay sau khi ve xong. Da thay that: `noi dung ben duoi
+         * doi (khac 0.43)` dung 5,5 giay sau `xong: ve 6 bubble` (F43).
+         */
+        private const val ARM_QUIET_MS = 1_000L
+
+        /**
          * Icon noi dang bat hay khong — man hinh chinh dung de doi mot nut duy
          * nhat giua Bat va Tat.
          *
@@ -347,8 +382,11 @@ class CaptureService : Service() {
             // Cho lop phu ve xong roi moi lay moc, neu khong thi chinh no lam
             // hash doi va lop phu tu xoa minh ngay lap tuc.
             delay(SETTLE_MS)
-            var baseline: String? = null
+            var baseline: FloatArray? = null
             var wasSelfChanging = false
+            // Chua "len nong": con dang lay moc, chua so sanh. Xem ARM_QUIET_MS.
+            var armed = false
+            var lastFrameMs = System.currentTimeMillis()
             while (isActive && src.isAlive) {
                 val ov = overlays ?: return@launch
                 if (ov.selfChanging.get()) {
@@ -356,6 +394,7 @@ class CaptureService : Service() {
                     // phu de chup). Bo moc cu va lay moc moi khi xong — neu
                     // khong thi chinh app lam mat ban dich cua no.
                     baseline = null
+                    armed = false
                     wasSelfChanging = true
                 } else if (wasSelfChanging) {
                     // Vua thoi tu-lam-doi. KHONG lay moc ngay: `ImageReader` con
@@ -366,15 +405,30 @@ class CaptureService : Service() {
                     delay(SETTLE_MS)
                     src.drainFrames()
                     baseline = null
+                    armed = false
+                    lastFrameMs = System.currentTimeMillis()
                 } else {
-                    val now = src.peekFrameHash()
-                    if (now != null) {
-                        if (baseline == null) {
+                    val now = src.peekFrameSignature()
+                    if (now != null) lastFrameMs = System.currentTimeMillis()
+                    if (now != null && !armed) {
+                        // Con dang co frame chay ve => man hinh chua yen. Lay
+                        // moc moi, chua so sanh gi ca.
+                        baseline = now
+                    } else if (now == null && !armed && baseline != null &&
+                        System.currentTimeMillis() - lastFrameMs > ARM_QUIET_MS
+                    ) {
+                        armed = true
+                    } else if (now != null) {
+                        val base = baseline
+                        if (base == null) {
                             baseline = now
-                        } else if (now != baseline) {
-                            Log.i(TAG, "noi dung ben duoi doi — go lop phu")
-                            ov.clearPage()
-                            return@launch
+                        } else {
+                            val d = PageHash.distance(base, now)
+                            if (d > PAGE_CHANGE_THRESHOLD) {
+                                Log.i(TAG, "noi dung ben duoi doi (khac %.2f) — go lop phu".format(d))
+                                ov.clearPage()
+                                return@launch
+                            }
                         }
                     }
                 }

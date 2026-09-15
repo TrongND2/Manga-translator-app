@@ -159,6 +159,84 @@ object PageHash {
         }
         return sha1(sb.toString())
     }
+
+    // ---------- chu ky khung hinh (Story 3.7) ----------
+
+    /** Luoi lay mau. Co dinh, khong phu thuoc kich thuoc man hinh. */
+    private const val COLS = 16
+    private const val ROWS = 32
+
+    /** Moi o lay SUB x SUB diem roi lay trung binh — ben voi nhieu hon lay mot diem. */
+    private const val SUB = 3
+
+    /**
+     * Chu ky do xam cua khung hinh, **da chuan hoa nen bat bien voi do sang**.
+     *
+     * Vi sao khong dung `frameHash` cho viec canh trang nua: no la ma bam CHINH
+     * XAC, nen doi mot bit la khac. Ma man hinh **tu giam sang** truoc khi tat
+     * lam doi TOAN BO pixel — va app hieu thanh "nguoi dung sang trang" roi xoa
+     * mat ban dich.
+     *
+     * Do duoc tren M52, ban dich dung yen 65 giay roi bien mat:
+     * ```
+     * 01:46:04  DeviceType: isSupportBrightnessControl   <- man tu mo di
+     * 01:46:05  CaptureSvc: noi dung ben duoi doi — go lop phu
+     * ```
+     *
+     * Giam sang xap xi mot phep bien doi tuyen tinh `v -> a*v + b` tren moi
+     * pixel. Chuan hoa ve trung binh 0 va do lech chuan 1 thi **triet tieu ca a
+     * lan b**, nen anh mo di cho ra gan nhu dung chu ky cu; con sang trang thi
+     * hinh doi that nen chu ky doi that.
+     */
+    fun frameSignature(bmp: Bitmap, cropTopPx: Int): FloatArray {
+        val top = cropTopPx.coerceIn(0, maxOf(0, bmp.height - 1))
+        val h = bmp.height - top
+        val out = FloatArray(COLS * ROWS)
+        var i = 0
+        for (r in 0 until ROWS) {
+            for (c in 0 until COLS) {
+                var sum = 0f
+                var n = 0
+                for (sy in 0 until SUB) {
+                    val y = top + ((r * SUB + sy).toLong() * h / (ROWS * SUB)).toInt()
+                    for (sx in 0 until SUB) {
+                        val x = ((c * SUB + sx).toLong() * bmp.width / (COLS * SUB)).toInt()
+                        if (x in 0 until bmp.width && y in 0 until bmp.height) {
+                            val p = bmp.getPixel(x, y)
+                            // Do xam xap xi, khong can dung chuan — chi can nhat quan.
+                            sum += ((p shr 16 and 0xFF) * 77 + (p shr 8 and 0xFF) * 151 +
+                                (p and 0xFF) * 28) shr 8
+                            n++
+                        }
+                    }
+                }
+                out[i++] = if (n == 0) 0f else sum / n
+            }
+        }
+        var mean = 0f
+        for (v in out) mean += v
+        mean /= out.size
+        var varSum = 0f
+        for (v in out) { val d = v - mean; varSum += d * d }
+        val sd = kotlin.math.sqrt(varSum / out.size)
+        // Man hinh mot mau tron (dang chuyen canh, hay da tat) thi sd ~ 0. Chia
+        // cho no la ra vo nghia; giu nguyen 0 de hai khung nhu the coi la giong.
+        val k = if (sd < 1e-3f) 0f else 1f / sd
+        for (j in out.indices) out[j] = (out[j] - mean) * k
+        return out
+    }
+
+    /**
+     * Khoang cach giua hai chu ky — trung binh tri tuyet doi cua hieu.
+     *
+     * Don vi la "do lech chuan", nen nguong khong phu thuoc do sang hay bo truyen.
+     */
+    fun distance(a: FloatArray, b: FloatArray): Float {
+        if (a.size != b.size || a.isEmpty()) return Float.MAX_VALUE
+        var s = 0f
+        for (i in a.indices) s += kotlin.math.abs(a[i] - b[i])
+        return s / a.size
+    }
 }
 
 private fun sha1(s: String): String =

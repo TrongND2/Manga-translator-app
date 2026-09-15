@@ -155,6 +155,10 @@ class MediaProjectionSource(
      * Story 3.7 / AD-12 — nhin mot frame MOI neu co, de biet noi dung ben duoi
      * da doi chua. Tra `null` khi chua co frame moi.
      *
+     * Tra ve CHU KY da chuan hoa do sang, khong phai ma bam chinh xac — xem
+     * `PageHash.frameSignature` de biet vi sao (man hinh tu mo di lam xoa mat
+     * ban dich, F43).
+     *
      * Re vi hai le:
      *   1. `VirtualDisplay` chi sinh frame khi man hinh CO thay doi, nen luc
      *      dung yen thi `acquireLatestImage()` tra null ngay.
@@ -165,15 +169,15 @@ class MediaProjectionSource(
      * Cat bo status bar y nhu `capture()`: dong ho nhay phut khong duoc tinh la
      * "nguoi dung sang trang".
      */
-    fun peekFrameHash(): String? {
+    fun peekFrameSignature(): FloatArray? {
         if (stopped.get() || released.get()) return null
         val r = reader ?: return null
         val image = runCatching { r.acquireLatestImage() }.getOrNull() ?: return null
         return image.use {
             val bmp = toBitmap(it)
-            val hash = runCatching { PageHash.frameHash(bmp, statusBarPx) }.getOrNull()
+            val sig = runCatching { PageHash.frameSignature(bmp, statusBarPx) }.getOrNull()
             bmp.recycle()
-            hash
+            sig
         }
     }
 
