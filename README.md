@@ -8,6 +8,18 @@ Không server, không tài khoản. Sau khi tải gói mô hình một lần, **
 
 ---
 
+## Ba mô hình AI chạy thẳng trên điện thoại
+
+Toàn bộ dây chuyền nằm trong máy bạn — không có bước nào gọi ra ngoài:
+
+| Bước | Mô hình | Chạy gì |
+|---|---|---|
+| 👁️ **Tìm bóng thoại** | comic-text-and-bubble-detector (ONNX int8) | khoanh từng bóng thoại trên ảnh màn hình |
+| 🈶 **Đọc chữ Nhật** | manga-ocr (ViT + BERT, ONNX) | đọc cả chữ dọc, chữ viết tay, furigana |
+| 🧠 **Dịch** | **Gemma 4 E2B** (2,6 GB, LiteRT-LM) | dịch **cả trang trong một lần gọi** |
+
+Vì sao dịch cả trang một lần chứ không từng bóng: mô hình nhìn thấy toàn bộ cuộc hội thoại theo thứ tự đọc phải→trái nên **giữ được mạch truyện và xưng hô nhất quán** (anh/em/cậu/tớ...). Dịch lẻ từng bóng là nguyên nhân số một gây sai xưng hô — và đo thật thì nó còn **chậm hơn 3,3 lần**.
+
 ## Máy cần gì
 
 | | |
@@ -22,15 +34,37 @@ Không server, không tài khoản. Sau khi tải gói mô hình một lần, **
 2. Mở app đọc truyện, **chạm icon** → cho phép chụp màn hình
 3. **Chạm icon lần nữa** → dịch
 
-Ba cử chỉ:
+Bốn cử chỉ:
 
 | | |
 |---|---|
 | **Chạm icon** | dịch trang đang hiện |
-| **Giữ icon** | 📖 hướng dẫn · ✕ tắt app |
+| **Giữ icon** | 📖 hướng dẫn · ⌖ khoanh lấy chữ · ✕ tắt app |
 | **Chạm giữ vào bóng thoại** | xem lại chữ Nhật gốc |
+| **Lật trang / chuyển app** | dừng dịch ngay, gỡ bản dịch cũ |
 
 > Trang đầu mất khoảng 3 phút — mô hình phải đọc hết trang trước khi dịch, không phải app treo. Trang đã dịch rồi thì gần như tức thì.
+
+---
+
+## ⌖ Khoanh lấy chữ → từ điển riêng
+
+Giữ icon → chạm `⌖` → kéo một khung quanh chữ cần lấy. App đọc chữ Nhật trong khung ra, bạn gõ nghĩa tiếng Việt rồi lưu.
+
+**Từ điển riêng là cách bạn dạy app.** Mô hình chạy trên máy đôi khi bỏ qua một cụm, hoặc dịch một thành ngữ theo nghĩa đen — một mục từ điển ép được nó dịch đúng, và áp dụng cho **mọi lần dịch sau**. App cũng tự đề xuất tên nhân vật lặp lại để bạn duyệt.
+
+## 🔍 Tra nghĩa bằng Gemini — tuỳ chọn, mặc định tắt
+
+Khi khoanh được một cụm chữ, có nút **Hỏi Gemini** để lấy nhanh nghĩa gợi ý.
+
+Đây là **đường ra mạng duy nhất** của app, và nó được giữ rất hẹp:
+
+- **Dịch trang vẫn chạy 100% trên máy** — không có gì thay đổi ở đó
+- Chỉ **đúng cụm chữ bạn khoanh** mới được gửi đi. Không bao giờ gửi cả trang, không bao giờ gửi ảnh màn hình
+- Chỉ chạy khi bạn **tự bấm nút**
+- Không nhập khoá thì tính năng tắt hẳn, app chạy đủ như cũ
+
+Hướng dẫn lấy [khoá Gemini miễn phí](https://aistudio.google.com/apikey) nằm sẵn trong **Cài đặt / gói mô hình**, kèm nút mở thẳng trang tạo khoá. Khoá chỉ nằm trong máy bạn.
 
 ---
 
