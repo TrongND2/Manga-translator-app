@@ -2196,6 +2196,62 @@ du manh de dung, chu khong phai de thu tiep cach thu tu.
 
 ---
 
+## F56 — Kiem xem cac ban sua co ap dung duoc cho bo truyen KHAC khong
+
+Nguoi dung hoi: nhung gi vua sua co dung cho truyen khac khong? Cau tra loi tu
+suy luan la "co, vi no la co che chu khong phai chinh tay tung trang" — nhung
+rule 1 cua du an cam ket luan rong hon pham vi da do. Nen di do.
+
+Bo doi chieu: **tubaki** — 6 trang, **den trang**, khac han bo mau da dung de
+sua (truyen mau). Dung ban thu tren PC voi ket qua detector da luu tu Phase 0.
+
+### OCR: duong cu vs duong moi, 54 bong
+
+```
+giong het nhau : 50 / 54
+khac nhau      :  4 / 54   — ca 4 chi khac SO LUONG dau gach dai
+```
+
+Va trong 4 cho do co mot cho ban moi **dung hon han**:
+
+```
+cu : ...咬みついてるよ―――――――――――――――――――――――――――っっ   (35 dau gach)
+moi: ...咬みついてるよーーーーーーっっ                              (6 dau gach)
+```
+
+Khong cho nao te di.
+
+### Cuu vo bong mo coi: co de ra rac khong?
+
+Day moi la rui ro that — AD-5 sinh ra de chan OCR bia chu tren vung khong co
+chu (F2). Do tren bo den trang: **~1 vo mo coi moi trang**, va doc ra:
+
+```
+'......'   '♪'   'はいってっ'   'ああ'   '?'   '.........'
+```
+
+**Ca 6 deu la noi dung that**, khong co cai nao la chu bia. Trong do `はいってっ`
+("vao di!") la **thoai that ma ban cu bo sot hoan toan**.
+
+### Cai da do va cai CHUA do
+
+| | pham vi da do |
+|---|---|
+| chup khong dinh lop phu, icon khong bi nuot cham, giu ban dich mot phan, nut dung, bo nho | co che — dung o moi trang theo cau truc |
+| OCR: xam + ha dan tung nua + doc hai lan chon theo do tu tin | **hai bo truyen** (mau + den trang), 63 bong |
+| cuu vo bong mo coi, nguong diem 0.5 | **hai bo truyen**, khong ra rac |
+| nguong doi trang 0.05 | **mot bo** — chua thu tren app doc truyen khac |
+| chat luong DICH (prompt) | **mot bo, hai trang** — chua do tren bo khac |
+
+### Quy tac rut ra
+
+**"Day la co che nen no dung o moi noi" cung la mot ket luan can bang chung.**
+Co che dung khap noi, nhung moi CON SO di kem no thi khong: nguong 0.5, nguong
+0.05, va toan bo prompt deu duoc chon tu mot bo truyen. Doi chieu voi bo thu hai
+mat 10 phut va bien hai trong nam dong o bang tren tu "doan" thanh "da do".
+
+---
+
 ## Còn nợ
 
 | # | Việc | Chặn gì | Trạng thái |
