@@ -13,8 +13,8 @@ android {
         targetSdk = 36
         // `versionCode` la so ma AD-15 doi chieu voi khoang tuong thich khai
         // trong `package.json`. Nang no moi lan phat hanh, ke ca ban vá.
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 2
+        versionName = "1.0.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 

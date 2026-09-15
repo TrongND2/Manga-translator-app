@@ -72,12 +72,50 @@ class SetupActivity : AppCompatActivity() {
             textSize = 13f
         }
         val keyNote = TextView(this).apply {
-            text = "Chỉ dùng cho nút \"Hỏi Gemini\" khi bạn khoanh lấy một cụm chữ. " +
-                "Dịch trang vẫn chạy hoàn toàn trên máy, không gửi gì đi đâu.\n" +
-                "Lấy khoá miễn phí ở Google AI Studio."
-            textSize = 11f
-            alpha = 0.7f
-            setPadding(0, 8, 0, 8)
+            setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 12f)
+            setPadding(0, 24, 0, 8)
+            @Suppress("DEPRECATION")
+            setText(
+                Html.fromHtml(
+                    """
+                    <h3>Tra nghĩa bằng Gemini (tuỳ chọn)</h3>
+                    <p>Dùng cho nút <b>Hỏi Gemini</b> khi bạn khoanh lấy một cụm chữ.
+                    <b>Dịch trang vẫn chạy hoàn toàn trên máy</b> — chỉ đúng cụm chữ bạn
+                    khoanh mới được gửi đi, không bao giờ gửi cả trang hay ảnh màn hình.
+                    Để trống ô dưới là tắt hẳn.</p>
+                    <p><b>Lấy khoá thế nào:</b></p>
+                    <p>1. Bấm nút <b>Mở trang lấy khoá</b> bên dưới (hoặc vào
+                    aistudio.google.com/apikey).<br/>
+                    2. Đăng nhập bằng tài khoản Google của bạn.<br/>
+                    3. Bấm <b>Create API key</b> → chọn project nào cũng được.<br/>
+                    4. Bấm sao chép khoá, quay lại đây dán vào ô dưới rồi bấm Lưu.</p>
+                    <p><i>Tài khoản Gemini để chat KHÔNG phải là khoá API — vẫn phải tạo
+                    khoá riêng ở bước trên. Khoá chỉ nằm trong máy bạn.</i></p>
+                    """.trimIndent(),
+                    Html.FROM_HTML_MODE_COMPACT,
+                )
+            )
+        }
+        val keyOpen = Button(this).apply {
+            text = "Mở trang lấy khoá"
+            setOnClickListener {
+                runCatching {
+                    startActivity(
+                        android.content.Intent(
+                            android.content.Intent.ACTION_VIEW,
+                            android.net.Uri.parse(
+                                app.mangatrans.adapters.cloud.GeminiLookup.KEY_URL
+                            ),
+                        )
+                    )
+                }.onFailure {
+                    Toast.makeText(
+                        this@SetupActivity,
+                        "Không mở được trình duyệt. Vào: ${app.mangatrans.adapters.cloud.GeminiLookup.KEY_URL}",
+                        Toast.LENGTH_LONG,
+                    ).show()
+                }
+            }
         }
         val keyBtn = Button(this).apply {
             text = "Lưu khoá Gemini"
@@ -106,7 +144,7 @@ class SetupActivity : AppCompatActivity() {
                 addView(explainer())
                 addView(status); addView(bar); addView(detail)
                 addView(actionBtn); addView(deleteBtn); addView(redoBtn)
-                addView(keyNote); addView(keyInput); addView(keyBtn)
+                addView(keyNote); addView(keyOpen); addView(keyInput); addView(keyBtn)
             })
         })
 

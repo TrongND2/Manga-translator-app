@@ -60,3 +60,4 @@ handoff/
 
 # APK da dung va ghi chu phat hanh — di theo GitHub Releases, khong vao repo.
 apk/
+android/.kotlin/

@@ -113,12 +113,12 @@ class GrabTextActivity : AppCompatActivity() {
     private fun askGemini(ja: String) {
         val key = GeminiLookup.key(this)
         if (key.isNullOrBlank()) {
-            status.text = "Chưa có khoá Gemini. Vào Cài đặt / gói mô hình để dán khoá."
+            status.text = "Chưa có khoá Gemini. Mở app → Cài đặt / gói mô hình → làm theo hướng dẫn ở mục Gemini."
             return
         }
         status.text = "Đang hỏi Gemini..."
         lifecycleScope.launch {
-            val r = GeminiLookup(key).meaningOf(ja)
+            val r = GeminiLookup(this@GrabTextActivity, key).meaningOf(ja)
             r.onSuccess {
                 meaning.setText(it)
                 status.text = "Gemini trả lời xong — sửa lại nếu cần rồi bấm Lưu."

@@ -2486,6 +2486,86 @@ nhap chu Nhat vao ma khong can biet viet chu Nhat.
 
 ---
 
+## F63 — Goi Gemini that: ten model bi khai tu, va boi canh quyet dinh dung/sai
+
+Do ngay 2026-09-15, bang khoa that cua nguoi dung, tren may M52.
+
+### 1. Ten model mac dinh chet truoc khi app kip phat hanh
+
+Lan goi dau tien trong doi cua ma nay tra ve 404:
+
+```
+This model models/gemini-2.0-flash is no longer available.
+Please update your code to use models/gemini-3.6-flash
+```
+
+`gemini-2.0-flash` la ten toi chon vi no la ten "an toan" nhat luc viet ma. No
+da bi go. **Doi ten model la chuyen thuong, khong phai tai nan.**
+
+Diem dang gia: may chu **noi thang ten thay the ngay trong cau loi**. Nen cach
+chua khong phai la nho doi hang so moi quy, ma la doc ten do ra:
+
+```kotlin
+runCatching { call(ja, first) }.recoverCatching { e ->
+    val alt = MODEL_RE.findAll(e.message.orEmpty())
+        .map { it.groupValues[1] }.firstOrNull { it != first } ?: throw e
+    call(ja, alt).also { model = alt }   // nho lai cho lan sau
+}
+```
+
+Mot lan 404 -> goi lai ngay voi ten moi -> ghi vao prefs. Nguoi dung khong thay
+gi ca. Neu Google lai doi ten nua, app tu di theo ma khong can ban cap nhat.
+
+**Dieu kien de cach nay dung:** phai ghi lai ten moi (`model = alt`), neu khong
+moi lan tra tu deu ton mot vong 404 thua.
+
+### 2. Hoi troc mot cum tu cho ket qua SAI — boi canh khong phai trang tri
+
+Cung mot cum 「硬くしてる」, cung model, khac moi cau hoi:
+
+| Prompt | Tra loi |
+|---|---|
+| `Dich sang tieng Viet: 「硬くしてる」` | "Lam nham, dong dai" — **sai han** |
+| `Trong truyen tranh Nhat, nhan vat noi: 「硬くしてる」. Cum nay nghia tieng Viet la gi?` | "Dang gong cung" — **dung** |
+
+Mot cum tu tach khoi ngu canh la mo ho that su; model chon nghia pho bien nhat
+trong huan luyen, va voi cum nay nghia pho bien nhat khong phai nghia trong
+truyen. Noi ro **the loai van ban** va **ai dang noi** la du de keo no ve dung
+nhanh nghia.
+
+Day la cung mot bai hoc voi AD quan trong nhat cua du an (dich ca trang trong
+MOT lan goi, kem thu tu doc va glossary), chi khac cho ap dung.
+
+### 3. Bo loc noi dung khong chan truyen nguoi lon
+
+Thu that voi 「自分から膣内射精…」 — cum tuc tuong minh. Gemini tra:
+
+> Tự chủ động xuất tinh vào trong.
+
+HTTP 200, khong `promptFeedback.blockReason`, dich dung. Truoc do toi da lo
+cho nay se hong va da viet san cau bao loi "co the do bo loc noi dung". Cau do
+van nen giu (bo loc co that, va no thay doi theo thoi gian), nhung **gia dinh
+"gui cum tuc thi chac chan bi chan" la sai** — da do, khong bi chan.
+
+Ly do co le la pham vi: gui **mot cum vai chu** khac han gui ca trang truyen
+nguoi lon. Day la them mot ly do de giu nguyen gioi han "chi gui dung cum
+nguoi dung khoanh".
+
+### 4. Toan tuyen chay that tren may
+
+Giu icon me -> icon con `⌖` -> keo khung quanh mot bong thoai -> `GrabTextActivity`
+hien 「自分から膣内射精:」 (OCR doc `…` thanh `:`) -> bam **Hoi Gemini** -> 8 giay
+sau o nghia hien "Tự chủ động xuất tinh vào trong."
+
+### Quy tac rut ra
+
+**Voi API cua ben thu ba, cau bao loi la du lieu chu khong chi la thong bao.**
+Doc no ra va tu chua duoc thi nguoi dung khong bao gio phai biet co chuyen gi.
+
+**Va: truoc khi viet cau bao loi cho mot gia dinh, hay do gia dinh do da.** Toi
+suyt de lai trong ma mot loi giai thich cho mot chuyen khong xay ra.
+---
+
 ## Còn nợ
 
 | # | Việc | Chặn gì | Trạng thái |
