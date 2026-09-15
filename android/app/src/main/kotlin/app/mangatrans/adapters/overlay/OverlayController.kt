@@ -7,6 +7,8 @@ import android.view.WindowManager
 import app.mangatrans.domain.Bubble
 import app.mangatrans.ports.OverlayGate
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
@@ -41,6 +43,15 @@ class OverlayController(
      */
     val selfChanging = java.util.concurrent.atomic.AtomicBoolean(false)
 
+    private val scope = kotlinx.coroutines.CoroutineScope(
+        kotlinx.coroutines.SupervisorJob() + Dispatchers.Main
+    )
+
+    private companion object {
+        /** Ve xong mot bong thi bao nhieu lau nua coi la man hinh da yen. */
+        const val SELF_SETTLE_MS = 450L
+    }
+
     /**
      * Lop phu TU nhan cu chi cham giu (Story 3.6) — cac cua so ve cua no cung
      * chinh la cac cua so nhan cham. Xem ghi chu dau `TranslationOverlay`.
@@ -48,6 +59,9 @@ class OverlayController(
     val translation = TranslationOverlay(ctx, wm) { peeking -> selfChanging.set(peeking) }
 
     fun show() = icon.show()
+
+    /** Khung icon tren man hinh — bo canh trang bo qua vung nay. */
+    fun iconBox() = icon.boxOnScreen()
 
     /** Xem `FloatingIcon.raise` — goi sau khi ve xong ca trang. */
     suspend fun raiseIcon() = withContext(Dispatchers.Main) { icon.raise() }
@@ -93,7 +107,24 @@ class OverlayController(
             translation.begin(source, frameHash, statusBarPx, tf)
         }
 
-    suspend fun addBubble(b: Bubble) = withContext(Dispatchers.Main) { translation.add(b) }
+    /**
+     * Ve them mot bong, va bao cho bo canh trang biet **chinh ta vua lam man
+     * hinh doi** — neu khong no se tuong nguoi dung sang trang va xoa lop phu
+     * dang ve do.
+     *
+     * Co ha xuong sau `SELF_SETTLE_MS` de bo canh lay lai moc. Giua hai bong
+     * cach nhau vai giay, nen van con du khoang lang de bat cu chuyen app hay
+     * lat trang that.
+     */
+    suspend fun addBubble(b: Bubble) = withContext(Dispatchers.Main) {
+        selfChanging.set(true)
+        translation.add(b)
+        scope.launch {
+            delay(SELF_SETTLE_MS)
+            selfChanging.set(false)
+        }
+        Unit
+    }
 
     suspend fun retract(ids: Collection<Int>) =
         withContext(Dispatchers.Main) { translation.retract(ids) }

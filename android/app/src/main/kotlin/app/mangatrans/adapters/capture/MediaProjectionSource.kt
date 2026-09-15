@@ -173,13 +173,13 @@ class MediaProjectionSource(
      * Cat bo status bar y nhu `capture()`: dong ho nhay phut khong duoc tinh la
      * "nguoi dung sang trang".
      */
-    fun peekFrameSignature(): FloatArray? {
+    fun peekFrameSignature(exclude: List<app.mangatrans.domain.Box> = emptyList()): FloatArray? {
         if (stopped.get() || released.get()) return null
         val r = reader ?: return null
         val image = runCatching { r.acquireLatestImage() }.getOrNull() ?: return null
         return image.use {
             val bmp = toBitmap(it)
-            val sig = runCatching { PageHash.frameSignature(bmp, statusBarPx) }.getOrNull()
+            val sig = runCatching { PageHash.frameSignature(bmp, statusBarPx, exclude) }.getOrNull()
             bmp.recycle()
             sig
         }

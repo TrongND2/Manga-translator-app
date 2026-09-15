@@ -102,7 +102,8 @@ class CaptureService : Service() {
          * oan ngay vai giay sau khi ve xong. Da thay that: `noi dung ben duoi
          * doi (khac 0.43)` dung 5,5 giay sau `xong: ve 6 bubble` (F43).
          */
-        private const val ARM_QUIET_MS = 1_000L
+        /** Nhip hoi cua bo canh trang. Cang nho cang dung nhanh. */
+        private const val WATCH_POLL_MS = 150L
 
         /**
          * Icon noi dang bat hay khong — man hinh chinh dung de doi mot nut duy
@@ -315,6 +316,9 @@ class CaptureService : Service() {
 
         setIconState(FloatingIcon.State.Reading)
         var drawn = 0
+        // Vung app TU VE len — bo canh trang phai bo qua, neu khong chinh ban
+        // dich vua ve lai bi coi la "nguoi dung sang trang".
+        val drawnRects = java.util.concurrent.CopyOnWriteArrayList<app.mangatrans.domain.Box>()
         // Tim thay bao nhieu bong thoai — de phan biet "khong thay bong nao"
         // voi "co bong nhung dich hong". Hai cai do doi hai cau bao khac han.
         var found = 0
@@ -341,8 +345,14 @@ class CaptureService : Service() {
                         // chua biet co ve duoc gi khong, ma AD-9 cam to nen som.
                         if (drawn == 0) {
                             ov.beginPage(bitmap, frameHash, statusBarHeight(), tf)
+                            // Bat bo canh NGAY tu bong dau tien, khong doi ca
+                            // trang xong. Nguoi dung lat trang / chuyen app giua
+                            // chung thi phai dung ngay, neu khong ban dich cu
+                            // nam de len man hinh moi (F61).
+                            watchForPageChange(src, bitmap, drawnRects)
                         }
                         drawn++
+                        drawnRects += app.mangatrans.pipeline.BubbleRenderer.drawnRect(ev.bubble)
                         ov.addBubble(ev.bubble)
                     }
 
@@ -388,10 +398,10 @@ class CaptureService : Service() {
         // Cua so ban dich duoc them SAU icon nen nam tren no. Bong thoai nao
         // gan mep la de len icon va nuot cu cham — dua icon len lai (F44).
         if (drawn > 0) ov.raiseIcon()
-        if (drawn > 0) {
-            // Story 3.6 da nam trong chinh cac cua so ve — khong con buoc rieng.
-            watchForPageChange(src)   // Story 3.7
-        } else {
+        // Bo canh da chay tu bong dau tien roi; o day chi con don khi khong ve
+        // duoc gi.
+        if (drawn == 0) {
+            watching?.cancel()
             ov.clearPage()
         }
         setIconState(if (src.isAlive) FloatingIcon.State.Ready else FloatingIcon.State.NeedPermission)
@@ -479,63 +489,57 @@ class CaptureService : Service() {
      * Moc so sanh lay SAU khi da ve xong lop phu — lop phu dung yen nen khong
      * lam hash doi; chi noi dung ben duoi doi moi lam doi.
      */
-    private fun watchForPageChange(src: MediaProjectionSource) {
+    private fun watchForPageChange(
+        src: MediaProjectionSource,
+        page: android.graphics.Bitmap,
+        mask: List<app.mangatrans.domain.Box>,
+    ) {
         watching?.cancel()
         watching = scope.launch {
-            // Cho lop phu ve xong roi moi lay moc, neu khong thi chinh no lam
-            // hash doi va lop phu tu xoa minh ngay lap tuc.
-            delay(SETTLE_MS)
+            // ⚠️ Moc so sanh la **ANH DA CHUP**, khong phai mot frame bat duoc
+            // luc chay. Anh do khong bao gio doi, nen khong can cho man hinh
+            // yen, khong can "len nong", khong can lay moc lai.
+            //
+            // Ban truoc phai cho vi no so CA man hinh, ma chinh app dang ve ban
+            // dich len do — moi bong vua ve deu trong nhu "nguoi dung sang
+            // trang". Cai gia la **hon 4 giay** moi phat hien nguoi dung lat
+            // trang, va chuyen app thi co khi khong bat duoc (F61).
+            //
+            // Gio bo qua dung vung bong thoai va vung icon — hai cho duy nhat
+            // app dong toi. Phan con lai la tranh: doi la nguoi dung that su
+            // doi man hinh, va bat ngay o nhip hoi dau tien.
+            var known = -1
             var baseline: FloatArray? = null
-            var wasSelfChanging = false
-            // Chua "len nong": con dang lay moc, chua so sanh. Xem ARM_QUIET_MS.
-            var armed = false
-            var lastFrameMs = System.currentTimeMillis()
             while (isActive && src.isAlive) {
                 val ov = overlays ?: return@launch
-                if (ov.selfChanging.get()) {
-                    // App dang tu lam man hinh doi (liec nguyen ban, hoac an lop
-                    // phu de chup). Bo moc cu va lay moc moi khi xong — neu
-                    // khong thi chinh app lam mat ban dich cua no.
-                    baseline = null
-                    armed = false
-                    wasSelfChanging = true
-                } else if (wasSelfChanging) {
-                    // Vua thoi tu-lam-doi. KHONG lay moc ngay: `ImageReader` con
-                    // giu frame cua trang thai DA QUA (luc dang an lop phu), va
-                    // lay chung lam moc se khien lop phu tu xoa minh o vong sau.
-                    wasSelfChanging = false
-                    src.drainFrames()
-                    delay(SETTLE_MS)
-                    src.drainFrames()
-                    baseline = null
-                    armed = false
-                    lastFrameMs = System.currentTimeMillis()
-                } else {
-                    val now = src.peekFrameSignature()
-                    if (now != null) lastFrameMs = System.currentTimeMillis()
-                    if (now != null && !armed) {
-                        // Con dang co frame chay ve => man hinh chua yen. Lay
-                        // moc moi, chua so sanh gi ca.
-                        baseline = now
-                    } else if (now == null && !armed && baseline != null &&
-                        System.currentTimeMillis() - lastFrameMs > ARM_QUIET_MS
-                    ) {
-                        armed = true
-                    } else if (now != null) {
-                        val base = baseline
-                        if (base == null) {
-                            baseline = now
-                        } else {
-                            val d = PageHash.distance(base, now)
-                            if (d > PAGE_CHANGE_THRESHOLD) {
-                                Log.i(TAG, "noi dung ben duoi doi (khac %.2f) — go lop phu".format(d))
-                                ov.clearPage()
-                                return@launch
-                            }
-                        }
+                // Dang tu an lop phu de chup — bo qua nhip nay.
+                if (ov.selfChanging.get()) { delay(WATCH_POLL_MS); continue }
+
+                val boxes = mask + ov.iconBox().let {
+                    val dy = statusBarHeight()
+                    app.mangatrans.domain.Box(it.x1, it.y1 - dy, it.x2, it.y2 - dy)
+                }
+                if (boxes.size != known) {
+                    known = boxes.size
+                    baseline = PageHash.frameSignature(page, 0, boxes)
+                }
+
+                val now = src.peekFrameSignature(boxes)
+                val base = baseline
+                if (now != null && base != null) {
+                    val d = PageHash.distance(base, now)
+                    if (d > PAGE_CHANGE_THRESHOLD) {
+                        Log.i(TAG, "man hinh doi (khac %.2f) — dung dich, go lop phu".format(d))
+                        running?.cancel()
+                        ov.clearPage()
+                        setIconState(
+                            if (src.isAlive) FloatingIcon.State.Ready
+                            else FloatingIcon.State.NeedPermission
+                        )
+                        return@launch
                     }
                 }
-                delay(POLL_MS)
+                delay(WATCH_POLL_MS)
             }
         }
     }

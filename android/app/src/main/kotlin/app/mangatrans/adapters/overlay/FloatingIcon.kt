@@ -117,6 +117,14 @@ class FloatingIcon(
      * go ra roi gan lai. Chi goi mot lan sau khi ve xong ca trang — goi moi lan
      * them mot bong se lam icon chop giat 12 lan.
      */
+    /**
+     * Khung icon dang chiem tren man hinh. Bo canh trang phai BO QUA vung nay:
+     * anh chup goc khong co icon (no bi an di luc chup), nen neu khong bo qua
+     * thi chinh icon lam lech phep so sanh.
+     */
+    fun boxOnScreen(): app.mangatrans.domain.Box =
+        app.mangatrans.domain.Box(lp.x, lp.y, lp.x + dp(ICON_DP), lp.y + dp(ICON_DP))
+
     fun raise() {
         if (!attached) return
         runCatching { wm.removeView(root) }

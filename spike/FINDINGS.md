@@ -2382,6 +2382,60 @@ nhau trong dau mo hinh, va duong thu hai o day thang.
 
 ---
 
+## F61 — Dung dich NGAY khi nguoi dung roi trang, thay vi sau 4 giay
+
+Nguoi dung: *"dang dich ma chuyen anh, chuyen app thi dung dich nhe. Hien tai
+bong thoai dich van hien tren man hinh, choang cho."*
+
+Ban dau toi cho bo canh trang chay ngay tu bong DAU TIEN (thay vi doi ca trang
+xong) va huy luon luot dang chay. Do duoc: lat trang -> dung sau **4 giay**.
+Nguoi dung tra loi ngay: *"toi muon ngung dich luon chu khong phai mat tan 4
+giay"*. Va phep thu chuyen app thi **khong bat duoc gi ca**.
+
+### 4 giay do o dau ra
+
+Khong phai gioi han ky thuat ma la **do tre toi tu dat de chong bao nham**:
+
+```
+450 ms   co `selfChanging` sau moi bong vua ve
+700 ms   settle sau khi thoi tu-lam-doi
+1000 ms  ARM_QUIET_MS — cho man hinh yen roi moi chot moc
+350 ms   nhip hoi
+```
+
+Tat ca ton tai vi mot ly do duy nhat: bo canh so **CA man hinh**, ma chinh app
+dang ve ban dich len do — moi bong vua ve deu trong nhu "nguoi dung sang trang".
+
+### Sua gocs: bo qua dung vung app tu ve
+
+Moc so sanh doi tu "mot frame bat duoc luc chay" sang **chinh anh da chup** —
+anh do khong bao gio doi, nen khong can cho yen, khong can len nong, khong can
+lay moc lai. Va khi so thi **bo qua vung bong thoai + vung icon**, hai cho duy
+nhat app dong toi.
+
+Phan con lai la tranh. Doi la nguoi dung that su doi man hinh.
+
+Cai gia: moi nhip phai tinh hai chu ky (moc + hien tai) thay vi mot. Chu ky la
+~4.600 lan doc diem anh, vai mili giay — de thu nhip hoi tu 350 ms xuong 150 ms.
+
+### Do lai
+
+```
+                 truoc          sau
+lat trang        > 4 giay       0,9 giay   (phan lon la animation lat trang)
+chuyen app       KHONG bat duoc 1,7 giay   (phan lon la thoi gian app kia mo len)
+```
+
+Ca hai truong hop deu dung ngay khi man hinh thuc su doi.
+
+### Quy tac rut ra
+
+**Do tre chong bao nham la dau hieu phep do dat sai cho.** Toi da chong bao nham
+bang cach doi — 2,15 giay do tre chi de tranh nhin nham ban dich cua chinh minh.
+Sua dung cho (bo qua vung minh ve) thi do tre bien mat, ma do chinh xac con tang.
+
+---
+
 ## Còn nợ
 
 | # | Việc | Chặn gì | Trạng thái |

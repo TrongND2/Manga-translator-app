@@ -170,6 +170,12 @@ object PageHash {
     private const val SUB = 3
 
     /**
+     * It hon chung nay o con lai thi vung bo qua da nuot gan het man hinh —
+     * khi do so sanh khong con y nghia, quay ve so CA man hinh.
+     */
+    private const val MIN_LIVE_CELLS = 80
+
+    /**
      * Chu ky do xam cua khung hinh, **da chuan hoa nen bat bien voi do sang**.
      *
      * Vi sao khong dung `frameHash` cho viec canh trang nua: no la ma bam CHINH
@@ -188,7 +194,24 @@ object PageHash {
      * lan b**, nen anh mo di cho ra gan nhu dung chu ky cu; con sang trang thi
      * hinh doi that nen chu ky doi that.
      */
-    fun frameSignature(bmp: Bitmap, cropTopPx: Int): FloatArray {
+    fun frameSignature(bmp: Bitmap, cropTopPx: Int): FloatArray =
+        frameSignature(bmp, cropTopPx, emptyList())
+
+    /**
+     * @param exclude nhung vung **BO QUA** khi so sanh, toa do trong anh da cat
+     *   status bar.
+     *
+     * Vi sao can: bo canh trang chay NGAY TRONG luc dich, ma chinh app dang ve
+     * ban dich len man hinh — neu so ca man hinh thi moi bong vua ve deu bi coi
+     * la "nguoi dung sang trang". Ban truoc chua chuyen do bang cach cho man
+     * hinh yen roi moi so, va cai gia la **hon 4 giay moi phat hien ra** nguoi
+     * dung da lat trang hay chuyen app.
+     *
+     * Bo qua dung vung bong thoai thi phan con lai — tranh, nen — la cho app
+     * KHONG BAO GIO dong toi. Doi mot pixel o do nghia la nguoi dung that su
+     * doi man hinh, va bat duoc ngay o nhip hoi dau tien (F61).
+     */
+    fun frameSignature(bmp: Bitmap, cropTopPx: Int, exclude: List<Box>): FloatArray {
         val top = cropTopPx.coerceIn(0, maxOf(0, bmp.height - 1))
         val h = bmp.height - top
         val out = FloatArray(COLS * ROWS)
@@ -210,15 +233,23 @@ object PageHash {
                         }
                     }
                 }
-                out[i++] = if (n == 0) 0f else sum / n
+                val cx = ((c * SUB + 1).toLong() * bmp.width / (COLS * SUB)).toInt()
+                val cy = top + ((r * SUB + 1).toLong() * h / (ROWS * SUB)).toInt()
+                out[i++] = when {
+                    exclude.any { cx in it.x1..it.x2 && cy in it.y1 + top..it.y2 + top } -> Float.NaN
+                    n == 0 -> 0f
+                    else -> sum / n
+                }
             }
         }
+        val live = out.filter { !it.isNaN() }
+        if (live.size < MIN_LIVE_CELLS) return frameSignature(bmp, cropTopPx, emptyList())
         var mean = 0f
-        for (v in out) mean += v
-        mean /= out.size
+        for (v in live) mean += v
+        mean /= live.size
         var varSum = 0f
-        for (v in out) { val d = v - mean; varSum += d * d }
-        val sd = kotlin.math.sqrt(varSum / out.size)
+        for (v in live) { val d = v - mean; varSum += d * d }
+        val sd = kotlin.math.sqrt(varSum / live.size)
         // Man hinh mot mau tron (dang chuyen canh, hay da tat) thi sd ~ 0. Chia
         // cho no la ra vo nghia; giu nguyen 0 de hai khung nhu the coi la giong.
         val k = if (sd < 1e-3f) 0f else 1f / sd
@@ -234,8 +265,12 @@ object PageHash {
     fun distance(a: FloatArray, b: FloatArray): Float {
         if (a.size != b.size || a.isEmpty()) return Float.MAX_VALUE
         var s = 0f
-        for (i in a.indices) s += kotlin.math.abs(a[i] - b[i])
-        return s / a.size
+        var n = 0
+        for (i in a.indices) {
+            if (a[i].isNaN() || b[i].isNaN()) continue   // o da bi bo qua
+            s += kotlin.math.abs(a[i] - b[i]); n++
+        }
+        return if (n == 0) 0f else s / n
     }
 }
 
