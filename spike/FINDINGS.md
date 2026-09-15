@@ -1957,6 +1957,115 @@ trong vo co chu khong, trong khi detector da tra loi san bang chinh cai nhan
 
 ---
 
+## F50 — Android thu nho anh lam OCR doc sai chu, va PC doc dung cung tam anh do
+
+Nguoi dung chi mot bong dich sai. Ho so chan doan cho thay OCR doc
+`ただの本名はじゃない` trong khi tren trang la `ただの変態じゃない` — doc nham
+**変態** (bien thai) thanh **本名** (ten that).
+
+De thu nhanh nhieu cach tien xu ly ma khong phai vong qua dien thoai moi lan,
+dung mot ban thu tren PC: chay **dung encoder/decoder ONNX ma app dung**, tren
+**dung tam anh ma app da nhin thay** (luu tu duong chan doan F48).
+
+Ban thu lap tuc lo ra mot dieu khong ngo: mot bong khac, `柔らかいものに…`, tren
+PC doc **dung**, tren may doc **sai** thanh `予末らかいものに`. Cung mo hinh, cung
+anh, cung toa do. Khac biet duy nhat con lai: **cach thu nho anh**.
+
+### Do
+
+```
+                                  柔らかいものに…
+  bilinear tho (nhu Android)  ->  予末らかいものに…   SAI
+  co chong rang cua (PIL)     ->  柔らかいものに…     DUNG
+  LANCZOS                     ->  柔らかいものに…     DUNG
+  trung binh vung (BOX)       ->  柔らかいものに…     DUNG
+```
+
+`Bitmap.createScaledBitmap(..., filter = true)` **nghe nhu** da loc, nhung
+bilinear cua Android chi lay 2x2 diem lan can. Thu nho 2-2,5 lan — dung ty le
+cua hop chu bong thoai (cao 400-550 px xuong 224) — thi phan lon diem anh khong
+duoc nhin den, va net chu manh bien mat.
+
+### Sua, khong can thu vien ngoai
+
+**Ha dan tung nua.** Ha mot nua bang bilinear tuong duong lay trung binh 2x2,
+tuc moi diem anh deu duoc tinh den; lap den khi con trong pham vi 2x cua dich
+roi ha not. Thu truoc tren PC bang cach mo phong dung thuat toan se cai:
+
+```
+  bilinear tho      ->  予末らかいものに…
+  ha dan tung nua   ->  柔らかいものに…     <- TOT LEN
+```
+
+Cai len may, do lai tren dung trang do: OCR doc dung `柔らかい`, ban dich tu
+*"thu gi do dang so"* thanh *"thu mem mai"*.
+
+Rieng `変態` van doc sai (`本人` thay vi `本名`) — chu do in rat to va cach dieu,
+la truong hop kho that, khong phai loi thu nho anh.
+
+### Quy tac rut ra
+
+**Hai moi truong chay cung mot mo hinh cho hai ket qua khac nhau thi khac biet
+nam o phan KHONG PHAI mo hinh.** Toi da di tim loi trong mo hinh, trong mau sac,
+trong prompt — trong khi no nam o mot dong thay doi kich thuoc anh.
+
+**Va: mot ban thu chay tren PC dang gia hon nhieu vong thu tren may.** Moi vong
+tren dien thoai mat ~2 phut va chi thu duoc mot cach; ban thu PC thu bon cach
+trong vai giay, va chinh no lo ra su khac biet ma tren may khong the thay.
+
+---
+
+## F51 — Khong co API dung sinh chu, nhung huy coroutine la du
+
+Nguoi dung hoi: dang dich co bam de dung duoc khong? Truoc day cham luc dang
+dich bi **bo qua im lang**, nen doi y thi van phai ngoi cho het gan hai phut.
+
+`javap` tren AAR: `Conversation` khong co `cancel`/`stop`, chi co `close`. Nhung
+huy coroutine thi `done.await()` bat CancellationException va `use` dong luon
+phien hoi thoai. Thu tren may: dung ngay, icon ve xanh san sang, va **dich lai
+duoc binh thuong ngay sau do** (9/9 bong).
+
+Kem theo mot bay: `runCatching { ... }` bao quanh vong thu su kien **nuot ca
+CancellationException**, nen than ham van chay tiep xuong phan cuoi — bao "dich
+khong tron trang", ve lai lop phu, bat lai bo canh trang. Mot cu cham cho hai
+thong bao nguoc nhau. Phai kiem `currentCoroutineContext().isActive` ngay sau do.
+
+### Quy tac rut ra
+
+**`runCatching` khong phan biet "loi" voi "bi huy".** Moi cho dung no bao quanh
+mot doan `suspend` deu can kiem lai xem coroutine con song khong.
+
+---
+
+## F52 — Prompt da cham tran: them mot dong lam ca trang tu 9/9 xuong 0/9
+
+Trong mot phien toi them dan bon muc vao prompt, moi muc deu do rieng tren mot
+trang va deu cho ket qua tot hon. Muc thu nam — mot dong 143 ky tu ve tieng keu
+— lam **ca trang hong**:
+
+```
+  prompt 3.377 ky tu  ->  xong: ve 9 bubble
+  prompt 3.520 ky tu  ->  xong: ve 0 bubble     (mo hinh tra 1/9 roi lech jaEcho)
+```
+
+Go dong do ra: quay lai 9/9. Dau ra tat dinh (F47) nen day khong phai may rui —
+dung mot prompt cho dung mot ket qua.
+
+Prompt da tu 1.984 ky tu phinh len 3.377. Gemma 4 E2B la mo hinh 2 ti tham so:
+cang nhieu chi thi thi cang de bo quen chi thi quan trong nhat, ma o day chi thi
+quan trong nhat la **khuon JSON va cong jaEcho** — bo quen no la mat ca trang.
+
+### Quy tac rut ra
+
+**Prompt co ngan sach, va no khong hien ra o bat ky phep do le nao.** Moi muc
+them vao deu "do duoc la tot hon" khi thu rieng. Cai gia chi hien khi cong don,
+va no khong tra dan ma **sap mot lan**: dang 9/9 xuong 0/9.
+
+**Nen: tu gio them mot muc vao prompt thi phai do CA TRANG co con ra du bong
+khong, chu khong chi do cau minh dinh sua.**
+
+---
+
 ## Còn nợ
 
 | # | Việc | Chặn gì | Trạng thái |

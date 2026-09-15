@@ -75,8 +75,8 @@ class MangaOcrOnnx(
         if (x2 - x1 < 2 || y2 - y1 < 2) return@withContext ""
 
         val crop = Bitmap.createBitmap(src, x1, y1, x2 - x1, y2 - y1)
-        val scaled = Bitmap.createScaledBitmap(crop, IMG, IMG, true)
-        if (crop !== src) crop.recycle()
+        val scaled = scaleForOcr(crop, IMG, IMG)
+        if (crop !== src && crop !== scaled) crop.recycle()
 
         val hidden = try {
             encode(scaled)
@@ -88,6 +88,46 @@ class MangaOcrOnnx(
         // Quy uoc spine: CHUAN HOA NFKC ngay tai day, truoc moi so sanh chuoi.
         // Khong lam thi khoa cache vo va cong AD-6 bao dong gia (F24).
         normalizeJa(text)
+    }
+
+    /**
+     * Thu nho anh ve 224x224 **co chong rang cua**.
+     *
+     * ⚠️ `Bitmap.createScaledBitmap(..., filter = true)` nghe nhu da loc roi,
+     * nhung bilinear cua Android chi lay 2x2 diem lan can. Thu nho 2-3 lan mot
+     * luc thi phan lon diem anh **khong duoc nhin den**, va net chu manh bien
+     * mat. Hop chu bong thoai cao 400-550 px ha xuong 224 la thu nho 2-2,5 lan,
+     * dung vung hong nhat.
+     *
+     * Do duoc, chay chinh encoder/decoder nay tren PC voi dung tam anh may da
+     * chup, mot bong thoai that:
+     * ```
+     *   bilinear tho (nhu cu)      -> 予末らかいものに…     <- SAI
+     *   co chong rang cua          -> 柔らかいものに…       <- DUNG
+     * ```
+     * `予末` va `柔` la hai chu khac han nhau; nguoi dung thay ban dich noi
+     * "thu gi do dang so" thay vi "thu mem mai" ma khong hieu tu dau ra (F50).
+     *
+     * Cach chua khong can thu vien ngoai: **ha dan tung nua**. Ha mot nua bang
+     * bilinear tuong duong lay trung binh 2x2, tuc moi diem anh deu duoc tinh
+     * den. Lap den khi con trong pham vi 2x cua dich roi ha not.
+     *
+     * Chi ha nua theo TRUC NAO DANG DAI — hop chu bong thoai thuong hep va cao,
+     * ha ca hai truc se lam nhoe truc von da phai phong to.
+     */
+    private fun scaleForOcr(src: Bitmap, w: Int, h: Int): Bitmap {
+        var cur = src
+        while (cur.width > 2 * w || cur.height > 2 * h) {
+            val nw = maxOf(w, (cur.width + 1) / 2)
+            val nh = maxOf(h, (cur.height + 1) / 2)
+            if (nw == cur.width && nh == cur.height) break
+            val next = Bitmap.createScaledBitmap(cur, nw, nh, true)
+            if (cur !== src) cur.recycle()
+            cur = next
+        }
+        val out = Bitmap.createScaledBitmap(cur, w, h, true)
+        if (cur !== src && cur !== out) cur.recycle()
+        return out
     }
 
     /** ViT chuan hoa mean=std=0.5 theo preprocessor_config.json cua manga-ocr. */

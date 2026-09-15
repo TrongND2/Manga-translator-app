@@ -268,7 +268,25 @@ class CaptureService : Service() {
             return
         }
         val p = pipeline ?: run { toast("Đang chuẩn bị, đợi một chút"); return }
-        if (running?.isActive == true) return   // dang chay, bo qua cham thua
+
+        // Cham lan nua trong khi dang dich = DUNG LAI.
+        //
+        // Truoc day cham luc nay bi bo qua im lang, nen nguoi dung ngoi cho het
+        // hai phut du da doi y. Khong co API dung rieng trong LiteRT-LM (da soi
+        // `javap` tren AAR: `Conversation` chi co `close`), nhung huy coroutine
+        // thi dong tra ve dung ngay va `use` dong luon phien hoi thoai.
+        //
+        // Phan sinh chu ben trong thu vien co the con chay them mot luc roi moi
+        // dung han — nguoi dung khong thay, nhung may van am them vai giay.
+        if (running?.isActive == true) {
+            running?.cancel()
+            scope.launch {
+                overlays?.clearPage()
+                setIconState(if (src.isAlive) FloatingIcon.State.Ready else FloatingIcon.State.NeedPermission)
+            }
+            toast("Đã dừng dịch trang này.")
+            return
+        }
 
         watching?.cancel()
         running = scope.launch { translateOnce(src, p) }
@@ -353,6 +371,12 @@ class CaptureService : Service() {
                 }
             }
         }.onFailure { Log.e(TAG, "luot dich hong: ${it.javaClass.simpleName}") }
+
+        // ⚠️ `runCatching` nuot ca `CancellationException`, nen khi nguoi dung
+        // cham de DUNG thi than ham van chay tiep xuong day: bao "dich khong
+        // tron trang", ve lai lop phu, bat lai bo canh trang. Nguoi dung nhan
+        // hai thong bao nguoc nhau cho mot cu cham.
+        if (!kotlinx.coroutines.currentCoroutineContext().isActive) return
 
         Log.i(TAG, "xong: ve $drawn bubble")
         // Cua so ban dich duoc them SAU icon nen nam tren no. Bong thoai nao
