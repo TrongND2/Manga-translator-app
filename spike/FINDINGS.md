@@ -1789,6 +1789,62 @@ dinh sua ba lop.
 
 ---
 
+## F47 — "Phai dich di dich lai moi duoc" KHONG phai do mo hinh sinh ngau nhien
+
+Nguoi dung: *"dich doi cho van hoi ngu, phai dich di dich lai moi tam chap nhan
+duoc"*. Nghe la nghi ngay: dau ra ngau nhien. `javap` cho thay
+`SamplerConfig(topK, topP, temperature, seed)` va app **khong truyen gi ca**,
+tuc dung mac dinh cua Gemma — thuong la nhiet do ~1.0. Rat khop.
+
+Toi da viet xong ban sua (topK = 1, sinh tat dinh) truoc khi do. **May la co do
+truoc khi cai.**
+
+Phep do: dich CUNG MOT TRANG hai lan, xoa cache giua hai lan, so tung cau.
+
+```
+luot 1:  Dung ga nay co le la lan cuoi...
+luot 2:  Dung ga nay co le la lan cuoi...          === giong nhau
+luot 1:  Hom nay la ngay di hoc cuoi cung truoc khi chuyen truong...
+luot 2:  Hom nay la ngay di hoc cuoi cung truoc khi chuyen truong...   === giong nhau
+```
+
+**5/5 cau giong het nhau tung chu.** Mo hinh khong he sinh ngau nhien. Ban sua
+bi go bo — mot thay doi khong do duoc tac dung thi khong duoc vao ma nguon.
+
+Vay "dich lai thi tot hon" o dau ra? Gan nhu chac chan la truong hop F45: mo
+hinh dung som (6/11 bong) roi ca trang bi tu choi, dich lai thi lan sau du bong.
+Nguoi dung thay "lan sau tot hon" nhung do khong phai chat luong doi — do la
+lan truoc **khong ra gi ca**.
+
+### Gia tri phu: co mot ban thu nghiem sach
+
+Dau ra tat dinh nghia la moi khac biet giua hai lan chay deu quy duoc ve thay
+doi minh vua lam. Dung ngay no de sua mot loi thay bang mat:
+
+```
+truoc:  帰りの駅で… -> "O nha ga ve, khong ngo lai co chuyen nhu the dang cho doi -"
+sau  :  帰りの駅で… -> "O ga tren duong ve, khong ngo lai co chuyen nhu the nay cho doi minh -"
+```
+
+Them mot muc vao prompt ("viet nhu nguoi Viet noi, dung bam trat tu chu Nhat")
+kem dung vi du do. Bon cau con lai giu nguyen hoac tot hon, khong cau nao te di.
+Thu tiep tren mot trang KHAC de kiem xem co "hoc vet" theo vi du khong: giong co
+trang van dung (`くださりませぬか` -> "Xin nguoi cho duoc khong a!"), dau bo lung
+van giu. Khong thay dau hieu hong.
+
+### Quy tac rut ra
+
+**Viet xong ban sua khong co nghia la duoc cai ban sua do.** Gia thuyet nay hop
+ly den muc toi da code xong roi moi do. Neu cai luon thi da co mot thay doi vinh
+vien trong ma nguon dua tren mot nguyen nhan khong ton tai — va lan sau co ai do
+(hoac chinh toi) doc lai se tuong day la ket luan da duoc kiem chung.
+
+**Va: dau ra tat dinh la mot cong cu, khong chi la mot tinh chat.** Biet no tat
+dinh thi moi phep sua prompt deu do duoc bang mot lan chay, khong can chay nhieu
+lan lay trung binh.
+
+---
+
 ## Còn nợ
 
 | # | Việc | Chặn gì | Trạng thái |

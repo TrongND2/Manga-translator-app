@@ -235,6 +235,11 @@ GIỮ NGUYÊN NHỊP NÓI — đo trên máy thấy đây là chỗ sai nhiều 
 XƯNG HÔ PHẢI NHẤT QUÁN VỚI GIỌNG:
 Nhân vật dùng 小生 / ござる / ませぬ là giọng cổ trang, khiêm nhường → "tiểu sinh", "tại hạ", "kẻ hèn này". Đã chọn giọng đó cho một người thì mọi bubble của người đó phải cùng giọng — không được lúc "tiểu sinh" lúc "em".
 
+VIẾT NHƯ NGƯỜI VIỆT NÓI, ĐỪNG BÁM TRẬT TỰ CHỮ NHẬT:
+Dịch xong đọc lại một lượt: câu đó người Việt có nói thế không? Không thì viết lại cho thuận.
+- 帰りの駅で → "ở ga trên đường về", KHÔNG phải "ở nhà ga về"
+- Bổ ngữ nơi chốn/thời gian đứng đâu cho xuôi tiếng Việt thì để đó, đừng giữ nguyên chỗ của tiếng Nhật.
+
 Còn lại:
 - Tra glossary trước khi đoán nghĩa thành ngữ.
 - Bỏ hậu tố -san/-kun/-chan, chuyển sắc thái vào xưng hô.
