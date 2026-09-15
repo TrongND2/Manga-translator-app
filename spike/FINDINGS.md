@@ -2323,6 +2323,65 @@ no bi ke rong hon thuc te.
 
 ---
 
+## F60 — Mo hinh TU BO vet tuc, va tu dien rieng la duong vong duy nhat hieu qua
+
+Nguoi dung khoanh do mot bong: *"sao khong dich tu te o bong nay"*. Ho so chan
+doan:
+
+```
+JA: わ…っこんなに硬くしてる…っ      <- OCR doc DUNG hoan toan
+VI: W... oi!                        <- dich cut, mat sach ve sau
+```
+
+Khong phai loi doc chu. Mo hinh dich moi tieng thot dau cau roi **bo luon ve
+「こんなに硬くしてる」**. Cac bong khac cung trang, ke ca bong co noi dung nguoi
+lon nhe hon, deu dich binh thuong.
+
+### Sua bang cau chu: KHONG an
+
+Them mot dong vao prompt: *"Dich HET cac ve cua cau. Cau co ve tuc thi ve do van
+phai co trong ban dich."* Chay lai:
+
+```
+VI: W... oi!        <- Y HET nhu cu
+```
+
+Cac bong khac co doi chut (chung to prompt CO tac dung), nhung dung bong do thi
+khong nhuc nhich. Da go dong them vao — no khong dat muc dich ma con lam mot
+bong khac te di (`すすごい反りかた…` mat chu "kinh khung").
+
+Day khong phai chuyen dien dat chi thi. Gemma duoc huan luyen de tranh noi dung
+tinh duc tuong minh, va no **lang le bo ve do** thay vi tu choi ca cau — nen nhin
+vao ban dich khong co dau hieu gi bao la co phan bi bo.
+
+### Duong vong: tu dien rieng
+
+Them mot muc `硬くしてる` -> `"dang cuong cung"` (kind = Idiom, Confirmed):
+
+```
+truoc:  "W... oi!"
+sau  :  "W...っ, toi dang cuong cung the nay..."
+```
+
+Muc tu dien di vao prompt nhu mot **dinh nghia co tham quyen**, va no de hon
+moi cach dien dat chi thi. Day la dieu quan trong cho nguoi dung: gap cho nao bi
+bo bot, **tu them mot muc tu dien la ep duoc**.
+
+(Con mot vet nho: `W...っ` con sot ky tu Nhat. Chua sua.)
+
+### Quy tac rut ra
+
+**Mo hinh im lang bo bot thi khong the phat hien bang cach nhin dau ra.** Khac
+voi tu choi — tu choi thi thay ngay. Bo bot chi lo ra khi doi chieu voi nguyen
+ban, ma nguoi dung thi khong doc duoc nguyen ban. Duong chan doan (F48) la thu
+duy nhat bat duoc loai loi nay.
+
+**Va: khi mo hinh khong chiu lam theo chi thi, dung to giong chi thi — doi kenh.**
+Prompt la loi khuyen, muc tu dien la dinh nghia. Hai thu di qua hai duong khac
+nhau trong dau mo hinh, va duong thu hai o day thang.
+
+---
+
 ## Còn nợ
 
 | # | Việc | Chặn gì | Trạng thái |
