@@ -49,6 +49,9 @@ class OverlayController(
 
     fun show() = icon.show()
 
+    /** Xem `FloatingIcon.raise` — goi sau khi ve xong ca trang. */
+    suspend fun raiseIcon() = withContext(Dispatchers.Main) { icon.raise() }
+
     /** Story 3.5 — go sach, khong con dau vet nao (AD-10). */
     fun destroy() {
         translation.clear()

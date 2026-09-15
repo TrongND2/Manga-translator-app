@@ -1654,6 +1654,76 @@ Kèm theo đó là một hệ quả có thật cho người dùng: **vuốt bắ
 
 ---
 
+## F44 — Cua so ban dich de len icon noi va nuot cu cham
+
+Nguoi dung: *"dang dich thi treo bao loi"*. Dung lai thao tac do — dich cung mot
+trang nhieu lan lien tiep — thi den luot thu ba, **cham icon khong co gi xay ra
+ca**: khong log, khong loi, khong phan ung.
+
+Tu F39, lop phu ban dich dat **mot cua so rieng cho moi bong thoai**, va chung
+duoc them SAU cua so icon. Trong cung mot loai cua so, cai them sau nam tren.
+Nen bong thoai nao gan mep man hinh la de len icon.
+
+Do duoc bang `dumpsys input`, sau mot luot dich:
+
+```
+icon      frame=[0,818][136,954]
+mot bong  frame=[26,624][163,1027]    <- trum gan het icon
+```
+
+Cua so bong thoai nhan cham (bat buoc, xem F39) nen no nuot luon cu cham — nhin
+y het app treo.
+
+Sua: `FloatingIcon.raise()` — go ra roi gan lai de len tren cung. Chi goi MOT
+lan sau khi ve xong ca trang; goi moi lan them mot bong se lam icon chop giat
+12 lan mot trang.
+
+### Quy tac rut ra
+
+**Moi cua so them vao la mot lan sap xep lai chieu sau, va chieu sau thi khong
+ai nhin thay.** F39 doi mot cua so lay muoi hai cua so; loi ich do duoc ngay
+(chu Nhat bien mat), con cai gia thi nam im ba ngay moi lo ra.
+
+---
+
+## F45 — Duoc tat hoac mat tat: sau bong dich dung bi vut vi nam bong con thieu
+
+Cung lan dung lai thao tac cua nguoi dung, bat duoc mot luot nhu sau:
+
+```
+10:12:36  Translating 0/11      <- chay lai tu dau
+10:12:53  Translating 1/11
+...
+10:13:18  Translating 6/11      <- dung o day
+10:13:42  xong: ve 0 bubble     <- vut sach, bao loi
+```
+
+Mo hinh tra ve 6 trong 11 bong, hai lan lien. `TranslateFilter` doi
+`accepted.size == truth.size` moi coi la xong, nen ca 6 bong **da qua cong
+jaEcho** bi vut het, va nguoi dung nhan mot cau bao loi.
+
+Cai sai o day la gop hai chuyen khac han vao mot nhanh:
+
+| | nghia | phai lam gi |
+|---|---|---|
+| `mismatch` | mo hinh gan ban dich vao NHAM bong | vut het — dung, day la loi toan ven (AD-6) |
+| thieu bong | mo hinh **dung som** | nhung bong da ve van dung tung cai mot |
+
+Sua: het luot thu ma chi THIEU (khong mismatch), thi giu lai phan da xac thuc,
+phan con lai de nguyen tieng Nhat.
+
+Kem theo, cau bao loi cung sai: `"Khong tim thay bong thoai nao tren man hinh"`
+trong khi tim thay 11 bong va dich duoc 6. Gio phan biet hai canh bang so bong
+TIM DUOC, khong phai so bong VE DUOC.
+
+### Quy tac rut ra
+
+**Mot dieu kien gop hai nguyen nhan lai se xu ly sai it nhat mot trong hai.**
+`accepted.size == truth.size` dung cho "co sai khong" nhung bi dung luon cho
+"co du khong" — va cau tra loi cho hai cau hoi do doi hai cach xu ly nguoc nhau.
+
+---
+
 ## Còn nợ
 
 | # | Việc | Chặn gì | Trạng thái |

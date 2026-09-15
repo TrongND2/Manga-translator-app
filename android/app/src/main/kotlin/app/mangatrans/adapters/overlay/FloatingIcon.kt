@@ -98,6 +98,32 @@ class FloatingIcon(
         state = state          // ve lai mau/glyph
     }
 
+    /**
+     * Dua icon len TREN cung.
+     *
+     * Trong cung mot loai cua so, cai them SAU nam tren. Lop phu ban dich dat
+     * mot cua so rieng cho moi bong thoai (xem `TranslationOverlay`), va chung
+     * duoc them sau icon — nen bong thoai nao nam gan mep man hinh la **de len
+     * icon va nuot luon cu cham**.
+     *
+     * Do duoc tren may, sau mot luot dich:
+     * ```
+     *   icon         frame=[0,818][136,954]
+     *   mot bong     frame=[26,624][163,1027]   <- trum len icon
+     * ```
+     * Trieu chung: cham icon ma khong co gi xay ra, nhin y nhu app treo (F44).
+     *
+     * `WindowManager` khong cho dat thu tu z truc tiep, nen cach duy nhat la
+     * go ra roi gan lai. Chi goi mot lan sau khi ve xong ca trang — goi moi lan
+     * them mot bong se lam icon chop giat 12 lan.
+     */
+    fun raise() {
+        if (!attached) return
+        runCatching { wm.removeView(root) }
+        runCatching { wm.addView(root, lp) }
+        state = state
+    }
+
     /** Story 3.5 — dong thi khong con dau vet nao tren man hinh (AD-10). */
     fun hide() {
         dismissSubIcons()

@@ -296,6 +296,9 @@ class CaptureService : Service() {
 
         setIconState(FloatingIcon.State.Reading)
         var drawn = 0
+        // Tim thay bao nhieu bong thoai — de phan biet "khong thay bong nao"
+        // voi "co bong nhung dich hong". Hai cai do doi hai cau bao khac han.
+        var found = 0
         runCatching {
             p.run(bitmap).collect { ev ->
                 when (ev) {
@@ -304,6 +307,7 @@ class CaptureService : Service() {
                         // dung anh hay chu da OCR — do la man hinh rieng cua
                         // nguoi dung.
                         Log.i(TAG, "${ev.stage} ${ev.done}/${ev.total}")
+                        if (ev.total > found) found = ev.total
                         setIconState(
                         when (ev.stage) {
                             Stage.Capturing, Stage.Detecting -> FloatingIcon.State.Capturing
@@ -350,6 +354,9 @@ class CaptureService : Service() {
         }.onFailure { Log.e(TAG, "luot dich hong: ${it.javaClass.simpleName}") }
 
         Log.i(TAG, "xong: ve $drawn bubble")
+        // Cua so ban dich duoc them SAU icon nen nam tren no. Bong thoai nao
+        // gan mep la de len icon va nuot cu cham — dua icon len lai (F44).
+        if (drawn > 0) ov.raiseIcon()
         if (drawn > 0) {
             // Story 3.6 da nam trong chinh cac cua so ve — khong con buoc rieng.
             watchForPageChange(src)   // Story 3.7
@@ -357,7 +364,10 @@ class CaptureService : Service() {
             ov.clearPage()
         }
         setIconState(if (src.isAlive) FloatingIcon.State.Ready else FloatingIcon.State.NeedPermission)
-        if (drawn == 0) toast("Không tìm thấy bóng thoại nào trên màn hình")
+        if (drawn == 0) toast(
+            if (found == 0) "Không tìm thấy bóng thoại nào trên màn hình"
+            else "Dịch không trọn trang này nên giữ nguyên bản gốc. Chạm icon để thử lại."
+        )
     }
 
     /**

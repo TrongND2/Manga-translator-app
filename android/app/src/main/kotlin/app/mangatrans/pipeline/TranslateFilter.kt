@@ -87,6 +87,25 @@ class TranslateFilter(
                 return@flow
             }
 
+            // ⚠️ THIEU bubble KHAC HAN voi SAI bubble.
+            //
+            // `mismatch` nghia la mo hinh gan ban dich vao nham bong — loi toan
+            // ven, phai vut het (AD-6). Con `accepted.size < truth.size` ma
+            // khong mismatch chi nghia la mo hinh **dung som**: nhung bong da
+            // ve deu da qua cong jaEcho, tung cai mot deu dung.
+            //
+            // Truoc day hai truong hop nay bi xu ly nhu nhau: vut sach. Do tren
+            // may, mot trang 11 bong duoc dich dung 6 bong, hai lan lien, roi
+            // **ca 6 bi vut va nguoi dung nhan mot cau bao loi**. Gio: het luot
+            // thu ma chi thieu, thi giu lai phan da xac thuc, phan con lai de
+            // nguyen tieng Nhat. Dich mot nua van hon khong dich gi (F45).
+            val lastTry = attempt == cfg.translateRetries
+            if (reason == null && lastTry && accepted.isNotEmpty()) {
+                val merged = job.bubbles.map { accepted[it.id] ?: it }
+                emit(PageEvent.Done(job.withBubbles(merged), 0))
+                return@flow
+            }
+
             // AD-17 — go nhung bubble DA VE. Bat buoc, khong phai truong hop ngoai le.
             if (drawn.isNotEmpty()) {
                 emit(PageEvent.Retracted(drawn, reason ?: "thieu bubble"))
