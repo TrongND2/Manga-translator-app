@@ -14,7 +14,7 @@ android {
         // `versionCode` la so ma AD-15 doi chieu voi khoang tuong thich khai
         // trong `package.json`. Nang no moi lan phat hanh, ke ca ban vá.
         versionCode = 11
-        versionName = "1.1.0"
+        versionName = "1.0.2"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
