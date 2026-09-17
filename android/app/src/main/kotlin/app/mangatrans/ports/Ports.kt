@@ -37,7 +37,25 @@ interface OcrEngine {
  * ve (AD-6) roi moi phat ra ngoai de ve.
  */
 interface Translator {
-    fun translate(page: PageJob, glossary: List<GlossaryEntry>): Flow<BubbleTranslation>
+    /**
+     * @param continuing dot nay la dot THU HAI tro di cua **cung mot trang**.
+     *   Nguoi cai dat duoc phep dung lai phien lam viec cua dot truoc de khoi
+     *   phai doc lai phan dau vao co dinh.
+     *
+     *   Do tren may (M52): gui luot dau 2287 ky tu mat **16.200 ms** truoc khi
+     *   ra chu dau tien; gui tiep 24 ky tu tren CUNG mot phien chi mat **1.949
+     *   ms**. Tuc la phan da doc duoc giu lai, khong phai doc lai.
+     *
+     *   Nguoi goi phai bao [endPage] khi trang xong, du thanh hay bai.
+     */
+    fun translate(
+        page: PageJob,
+        glossary: List<GlossaryEntry>,
+        continuing: Boolean = false,
+    ): Flow<BubbleTranslation>
+
+    /** Ket thuc mot trang — bo phien lam viec dang giu (neu co). */
+    suspend fun endPage() {}
 
     /** AD-20/AD-24 — nap truoc, khong de den luc nguoi dung cham icon. */
     suspend fun warmUp()

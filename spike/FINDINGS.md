@@ -3117,6 +3117,102 @@ ca tien trinh.
 tu dau; tai lieu khong nhac toi no. Day la lan thu nam trong du an.
 ---
 
+## F70 — 72% prompt la phan co dinh, va no bi doc lai o MOI dot
+
+Nguoi dung hoi co the muon y tu LunaTranslator de app nhanh va dich chuan hon
+khong. Cau hoi do dan toi mot phep do ma dang le phai lam tu lau: **prompt dang
+gom nhung gi?**
+
+```
+prompt 3019 ky tu | 10 bubble | 15 muc glossary
+  SYSTEM (co dinh)            1697 ky tu   56%
+  khung co dinh                474 ky tu   16%
+  glossary + 10 bong thoai     848 ky tu   28%
+```
+
+**72% la phan co dinh** — va moi dot dich tao mot `Conversation` moi, nen 2171
+ky tu do duoc doc lai tu dau moi lan. Prefill do duoc 16-25 giay/dot.
+
+### Chua 1 — loc glossary theo trang
+
+Glossary duoc gui NGUYEN BO moi lan. Den luc do, tu dien cua nguoi dung da co
+**29 muc = 1621 ky tu**.
+
+Chi giu muc co chuoi chu Nhat **that su xuat hien** trong chu OCR cua trang.
+Do tren mot trang that: **0/29 muc lien quan**.
+
+| Trang 6 bong | ky tu |
+|---|---|
+| prompt neu gui ca 29 muc | 3899 |
+| prompt sau khi loc | **2287** |
+| | **-41%** |
+
+Hai cai loi, va cai thu hai moi quan trong:
+
+1. Ngan prompt, va **cang ngay cang dang**: truoc day moi muc them vao tu dien
+   lam MOI trang cham them mai mai.
+2. **Bot bia.** F65 do duoc: mo hinh sinh ten "Rurimaru" o mot bong khong he co
+   ten do, chi vi 「りゅ」 nghe gan giong va cai ten dang nam san trong prompt.
+   Muc khong co mat tren trang chi la moi nhu.
+
+Cach loc dung y luat da viet trong prompt (*"Chi thay mot muc glossary khi
+bubble chua DUNG chuoi chu Nhat cua muc do"*) — loc va luat la mot, khong lech
+duoc.
+
+### Chua 2 — dung lai mot `Conversation` cho ca trang
+
+**Probe truoc khi xay** (rule 3). Cau hoi: thu vien co giu KV cache qua nhieu
+luot khong? Gui them mot cau ngan tren dung `Conversation` vua dung xong:
+
+```
+20:19:09  prompt 2287 ky tu
+20:19:25  token dau tien sau 16200 ms (= prefill)
+20:20:04  PROBE: gui luot 2 (24 ky tu) tren CUNG conversation
+20:20:06  PROBE: luot 2 ra chu dau sau 1949 ms
+```
+
+**1,9 giay so voi 16,2 giay — cache duoc giu.** Nen viec xay la dang.
+
+Dot thu hai tro di dung `buildFollowUp()`: bo het luat dich, glossary, mo ta
+dinh dang — mo hinh van con giu chung trong phien.
+
+Do lai tren mot trang 13 bong (chia [7, 6]):
+
+```
+Dot 1: prompt 2288 ky tu                   -> prefill 17.317 ms
+Dot 2: prompt  268 ky tu | DUNG LAI phien  -> prefill  3.868 ms
+```
+
+Dot 2: prompt ngan hon **88%**, prefill nhanh hon **13,4 giay**.
+
+**Loi khong ngo:** dot 2 nhin thay ban dich cua dot 1, nen xung ho vat qua ranh
+gioi dot giu duoc nhat quan — dung cai mat mat ma F59 ghi la phai chap nhan.
+Do that tren trang 13 bong: "bo/Az" giu nguyen ca hai dot.
+
+### Cac bay khi giu phien song qua nhieu luot
+
+- **Thu lai phai mo phien MOI.** Phien cu dang chua mot bai lam hong; de lai
+  chi lam mo hinh bam theo cai sai do. `continuing && attempt == 0`.
+- **Khong duoc dong phien o cuoi moi dot nua**, nhung VAN phai cho ben native
+  dung han truoc khi thoat — neu khong la lap lai F69 (SIGSEGV).
+- `release()` phai dong phien truoc khi dong `Engine`.
+- Luot dich bi huy giua chung thi `endPage()` khong chay va phien con song.
+  Khong ro ri that: lan dich sau `continuing = false` se dong no.
+
+### Vi sao LunaTranslator dan toi day
+
+No **khong chay engine dich tren thiet bi doc** — no chay tren PC. Doi chieu
+sang day thi duong HOOK cua no la ngo cut (Android khong cho doc bo nho app
+khac neu khong root), nhung cau hoi "tai sao cham" thi van dung, va cau tra loi
+hoa ra khong nam o mo hinh ma nam o **cai ta gui vao mo hinh**.
+
+### Quy tac rut ra
+
+**Truoc khi doi mo hinh, hay do xem dang gui gi vao mo hinh hien tai.** 72%
+prompt la phan co dinh lap lai — khong phep do nao de thay hon, va cung khong
+phep do nao de bo qua hon.
+---
+
 ## Còn nợ
 
 | # | Việc | Chặn gì | Trạng thái |

@@ -104,12 +104,35 @@ class LiteRtLmTranslator(
         }
     }
 
+    override suspend fun endPage(): Unit = withContext(Dispatchers.Default) {
+        lock.withLock { closeSession() }
+    }
+
+    /**
+     * Bo phien lam viec cua trang.
+     *
+     * ⚠️ Khong dong khi ben native con chay — do dung la duong da gay SIGSEGV
+     * o F69. Con chay thi tha ro ri, re hon nhieu so voi lam chet ca app.
+     *
+     * Goi ben trong `lock` — nguoi goi chiu trach nhiem giu khoa.
+     */
+    private fun closeSession() {
+        val s = session ?: return
+        session = null
+        if (nativeBusy) {
+            Log.w(TAG, "ben native con chay — bo phien ma khong dong")
+            return
+        }
+        runCatching { s.close() }
+    }
+
     override suspend fun release(): Unit = withContext(Dispatchers.Default) {
         lock.withLock {
             if (nativeBusy) {
                 Log.w(TAG, "ben native con dang chay — khong nha engine luc nay")
                 return@withLock
             }
+            closeSession()
             engine?.let { runCatching { it.close() } }
             engine = null
             Log.i(TAG, "da nha engine")
@@ -126,14 +149,32 @@ class LiteRtLmTranslator(
      * `sendMessageAsync` nhan `MessageCallback`, goi lai nhieu lan khi token
      * chay ve. Ghep voi StreamingJsonParser de doc tung bubble ngay khi du.
      */
-    override fun translate(page: PageJob, glossary: List<GlossaryEntry>): Flow<BubbleTranslation> =
+    /**
+     * Phien lam viec cua TRANG dang dich — giu qua nhieu dot.
+     *
+     * Do tren may: luot dau (2287 ky tu) mat 16.200 ms truoc chu dau tien;
+     * luot thu hai (24 ky tu) tren CUNG phien chi mat 1.949 ms. Thu vien giu
+     * lai phan da doc, nen dung lai phien la bo duoc ca phan dau vao co dinh —
+     * do duoc la 2171 ky tu, tuc 72% prompt.
+     */
+    private var session: Conversation? = null
+
+    override fun translate(
+        page: PageJob,
+        glossary: List<GlossaryEntry>,
+        continuing: Boolean,
+    ): Flow<BubbleTranslation> =
         channelFlow {
             warmUp()
             val e = engine ?: error("engine chua san sang")
             val parser = StreamingJsonParser()
 
             lock.withLock {
-                e.createConversation(
+                // Dot tiep theo cua cung mot trang: dung lai phien cu neu con.
+                // Khong con (dot dau, hoac vua thu lai) thi mo phien moi.
+                val reuse = if (continuing) session else null
+                if (reuse == null) closeSession()
+                (reuse ?: e.createConversation(
                     ConversationConfig(
                         // ⚠️ Khong dat thi lay mac dinh cua thu vien, va mac
                         // dinh do CAT NGANG bai lam. Do tren may: mot trang 18
@@ -148,16 +189,19 @@ class LiteRtLmTranslator(
                         // dung het mot phan nho, va phan khong dung khong ton gi.
                         maxOutputToken = MAX_OUTPUT_TOKENS,
                     )
-                ).let { conv ->
+                ).also { session = it }).let { conv ->
                     val done = CompletableDeferred<Unit>()
                     var seen = 0
-                    val prompt = buildPrompt(page, glossary)
+                    val prompt =
+                        if (reuse != null) buildFollowUp(page) else buildPrompt(page, glossary)
                     val tStart = System.currentTimeMillis()
                     var tFirstToken = 0L
                     // Do de biet prefill chiem bao nhieu trong thoi gian toi
                     // bubble dau tien (NFR-005). Prompt dai => prefill lau =>
                     // khong the co bubble nao truoc khi prefill xong (AD-3).
-                    Log.i(TAG, "prompt ${prompt.length} ky tu | ${page.translatable.size} bubble | ${glossary.size} muc glossary")
+                    Log.i(TAG, "prompt ${prompt.length} ky tu | ${page.translatable.size} bubble" +
+                        " | ${glossary.size} muc glossary" +
+                        if (reuse != null) " | DUNG LAI phien truoc" else "")
 
                     nativeBusy = true
                     conv.sendMessageAsync(
@@ -210,10 +254,19 @@ class LiteRtLmTranslator(
                     // lai. Thu vien co san `cancelProcess()` (doc bang `javap`,
                     // tai lieu khong nhac); phai goi no VA cho callback bao xong
                     // roi moi duoc dong.
+                    // ⚠️ KHONG dong `conv` o day nua — phien phai song sang dot
+                    // sau cua cung trang. `endPage()` moi la cho dong.
+                    // Nhung van phai cho ben native dung han truoc khi thoat,
+                    // neu khong se lap lai F69 (SIGSEGV).
                     try {
                         done.await()
                     } finally {
-                        withContext(NonCancellable) { stopThenClose(conv, done) }
+                        withContext(NonCancellable) {
+                            runCatching { conv.cancelProcess() }
+                            val ok = withTimeoutOrNull(CANCEL_WAIT_MS) { done.await() } != null
+                            if (ok) nativeBusy = false
+                            else Log.w(TAG, "ben native chua dung — giu phien, khong dong")
+                        }
                     }
                 }
             }
@@ -246,6 +299,30 @@ class LiteRtLmTranslator(
      * KHONG dung prompt v2 (co buoc `literal`): da do (F9) no lam qwen3 nham ngoi
      * va lam gemma3 bi cat cut JSON, trong khi loi ich bang 0.
      */
+    /**
+     * Prompt cho dot THU HAI tro di cua cung mot trang.
+     *
+     * Bo het phan da noi o dot dau — luat dich, glossary, mo ta dinh dang — vi
+     * mo hinh van con giu nguyen chung trong phien. Chi con danh sach bong moi
+     * va mot cau nhac ngan ve dinh dang.
+     *
+     * Do duoc: phan bo di la 2171 ky tu, va doc lai chung ay mat ~16 giay moi
+     * dot. Gui 24 ky tu tren phien cu chi mat 1,9 giay.
+     *
+     * Loi them, khong phai loi chinh nhung co that: dot nay **nhin thay ban
+     * dich cua dot truoc**, nen xung ho vat qua ranh gioi dot de nhat quan hon
+     * — dung cai mat mat ma F59 da ghi la phai chap nhan.
+     */
+    private fun buildFollowUp(page: PageJob): String {
+        val bubbles = page.translatable.joinToString("\n") { "[${it.id}] ${it.ja}" }
+        val n = page.translatable.size
+        return """Tiếp tục CÙNG trang đó, còn $n bubble nữa. Giữ nguyên xưng hô và giọng đã chọn ở trên.
+
+$bubbles
+
+Trả về JSON đúng định dạng cũ, chỉ gồm $n bubble này."""
+    }
+
     private fun buildPrompt(page: PageJob, glossary: List<GlossaryEntry>): String {
         val gl = if (glossary.isEmpty()) "- (trống)" else glossary.joinToString("\n") {
             val tag = when (it.kind) {

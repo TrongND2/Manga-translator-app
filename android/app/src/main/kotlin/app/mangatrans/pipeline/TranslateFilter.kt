@@ -68,6 +68,35 @@ class TranslateFilter(
         const val MAX_PER_CALL = 10
     }
 
+    /**
+     * Chi giu nhung muc tu dien co chuoi chu Nhat **that su xuat hien** trong
+     * trang nay.
+     *
+     * Hai cai loi, va cai thu hai moi la cai quan trong:
+     *
+     * 1. **Ngan prompt.** Do tren may: prompt 3019 ky tu cho 10 bong, trong do
+     *    phan co dinh (SYSTEM + khung + ca glossary) chiem 72%. Glossary gui
+     *    het 15 muc moi lan du trang chi dinh toi vai muc.
+     *
+     * 2. **Bot bia.** F65 do duoc: mo hinh sinh ra ten "Rurimaru" o mot bong
+     *    KHONG HE co ten do, chi vi 「りゅ」 nghe gan giong va cai ten do dang
+     *    nam san trong prompt. Muc nao khong co mat tren trang thi chi la moi
+     *    nhu de mo hinh nham — bo di la bot dung mot nguon sai.
+     *
+     * Khop chuoi con, dung y nhu luat da viet trong prompt: *"Chi thay mot muc
+     * glossary khi bubble chua DUNG chuoi chu Nhat cua muc do"*. Loc o day va
+     * luat trong prompt la mot, khong the lech nhau.
+     *
+     * ⚠️ Danh doi da biet: OCR doc sai mot net thi muc do bi loai oan. Nhung
+     * khi do mo hinh cung se khong khop duoc chuoi ay — nen giu lai cung khong
+     * cuu duoc gi, chi ton cho.
+     */
+    private fun relevant(all: List<GlossaryEntry>, ja: Collection<String>): List<GlossaryEntry> {
+        if (all.isEmpty()) return all
+        val page = ja.joinToString("\n")
+        return all.filter { it.surface.isNotBlank() && page.contains(it.surface) }
+    }
+
     fun stream(job: PageJob): Flow<PageEvent> = flow {
         val all = job.translatable
         if (all.isEmpty()) {
@@ -89,7 +118,7 @@ class TranslateFilter(
             // [9, 9], 21 -> [7, 7, 7]. Khong dot nao vuot `MAX_PER_CALL`.
             val parts = (all.size + MAX_PER_CALL - 1) / MAX_PER_CALL
             val per = (all.size + parts - 1) / parts
-            all.chunked(per).forEach { chunk ->
+            all.chunked(per).forEachIndexed { i, chunk ->
                 val ids = chunk.map { it.id }.toSet()
                 val sub = job.withBubbles(
                     job.bubbles.map {
@@ -97,13 +126,18 @@ class TranslateFilter(
                         else it.copy(state = BubbleState.Suspect)
                     }
                 )
-                translateOnce(sub, merged)
+                // Tu dot thu hai: noi tiep phien cua dot truoc thay vi mo phien
+                // moi. Do tren may: mo phien moi phai doc lai 2171 ky tu co
+                // dinh, mat ~16 giay; noi tiep chi mat ~2 giay.
+                translateOnce(sub, merged, continuing = i > 0)
             }
+            translator.endPage()
             val out = job.bubbles.map { merged[it.id] ?: it }
             emit(PageEvent.Done(job.withBubbles(out), 0))
             return@flow
         }
-        translateOnce(job, null)
+        translateOnce(job, null, continuing = false)
+        translator.endPage()
     }
 
     /**
@@ -113,6 +147,7 @@ class TranslateFilter(
     private suspend fun kotlinx.coroutines.flow.FlowCollector<PageEvent>.translateOnce(
         job: PageJob,
         sink: MutableMap<Int, Bubble>?,
+        continuing: Boolean,
     ) {
         val truth = job.translatable.associate { it.id to it.ja }
         if (truth.isEmpty()) {
@@ -120,8 +155,9 @@ class TranslateFilter(
             return
         }
 
-        val glossary = glossaryOf()
+        val glossary = relevant(glossaryOf(), truth.values)
         var attempt = 0
+        Log.i(TAG, "glossary: ${glossary.size} muc lien quan toi trang nay")
 
         while (attempt <= cfg.translateRetries) {
             val drawn = mutableListOf<Int>()
@@ -130,7 +166,9 @@ class TranslateFilter(
 
             emit(PageEvent.Progress(app.mangatrans.domain.Stage.Translating, 0, truth.size))
 
-            translator.translate(job, glossary).collect { t ->
+            // Thu lai thi LUON mo phien moi: phien cu dang chua mot bai lam
+            // hong, de lai chi lam mo hinh bam theo cai sai do.
+            translator.translate(job, glossary, continuing && attempt == 0).collect { t ->
                 if (mismatch != null) return@collect   // da hong, bo qua phan con lai
 
                 // Id khong co trong dau vao — da gap that o tubaki_025 (F19).
