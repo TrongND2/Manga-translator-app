@@ -22,6 +22,7 @@ import app.mangatrans.Composition
 import app.mangatrans.adapters.capture.MediaProjectionSource
 import app.mangatrans.adapters.overlay.EditBubbleOverlay
 import app.mangatrans.adapters.overlay.FloatingIcon
+import app.mangatrans.adapters.overlay.GrabResultOverlay
 import app.mangatrans.adapters.overlay.OverlayController
 import app.mangatrans.adapters.storage.PageHash
 import app.mangatrans.domain.ErrorKind
@@ -162,6 +163,22 @@ class CaptureService : Service() {
 
     /** Panel sua bong thoai — tao mot lan roi dung lai. */
     private var editor: EditBubbleOverlay? = null
+
+    /** Panel hien chu vua khoanh duoc. */
+    private var grabPanel: GrabResultOverlay? = null
+
+    /**
+     * Anh chup luc khoanh chu, giu lai de lam NEN neu nguoi dung bam "De len
+     * trang" ma chua co trang nao dang hien. `null` = da giao cho lop phu.
+     */
+    @Volatile private var grabShot: Bitmap? = null
+
+    /**
+     * Id cho lop de THU CONG. Dem lui tu -1 nen khong bao gio dung id cua
+     * bubble do day chuyen sinh ra (luon >= 0) — va dau am chinh la cach phan
+     * biet hai loai o cho khac.
+     */
+    private var nextManualId = -1
 
     /**
      * Nguoi dung DA dong y cho chup chua.
@@ -491,6 +508,26 @@ class CaptureService : Service() {
     private val diagOn: Boolean
         get() = java.io.File("/data/local/tmp/mangatrans-diag").exists()
 
+    /**
+     * Luu khung hinh lam bo canh trang bao dong, de nhin tan mat cai gi doi.
+     *
+     * ⚠️ Day la noi dung man hinh rieng — chi ghi vao kho rieng cua app va chi
+     * khi co `/data/local/tmp/mangatrans-diag` (chi adb tao duoc).
+     */
+    private fun dumpAlarmFrame(src: MediaProjectionSource, d: Float) {
+        if (!diagOn) return
+        val bmp = src.peekBitmap() ?: return
+        scope.launch(Dispatchers.IO) {
+            runCatching {
+                val dir = java.io.File(filesDir, "diag").apply { mkdirs() }
+                val f = java.io.File(dir, "alarm-%.3f-%d.png".format(d, System.currentTimeMillis()))
+                f.outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
+                Log.i(TAG, "da luu khung hinh gay bao dong")
+            }
+            runCatching { bmp.recycle() }
+        }
+    }
+
     private fun dumpForDiagnosis(job: app.mangatrans.domain.PageJob) {
         if (!java.io.File("/data/local/tmp/mangatrans-diag").exists()) return
         scope.launch(Dispatchers.IO) {
@@ -592,6 +629,11 @@ class CaptureService : Service() {
                     if (d > PAGE_CHANGE_THRESHOLD) hits++ else hits = 0
                     if (hits >= PAGE_CHANGE_CONFIRM) {
                         Log.i(TAG, "man hinh doi (khac %.2f) — dung dich, go lop phu".format(d))
+                        // Luu lai DUNG khung hinh da gay bao dong. Con so `d`
+                        // noi duoc "khac bao nhieu" nhung khong noi duoc "khac
+                        // o dau" — ma bao dong gia thi cau hoi luon la cai gi
+                        // vua doi tren man hinh. Chi chay khi co co adb.
+                        dumpAlarmFrame(src, d)
                         running?.cancel()
                         ov.clearPage()
                         setIconState(
@@ -620,6 +662,8 @@ class CaptureService : Service() {
         watching?.cancel()
         editor?.hide()
         editor = null
+        grabPanel?.hide()
+        grabPanel = null
         scope.launch {
             runCatching { engines?.translator?.release() }   // AD-24
         }
@@ -661,8 +705,10 @@ class CaptureService : Service() {
             this,
             getSystemService(WINDOW_SERVICE) as WindowManager,
             onSavePage = { vi -> applyEdit(id, vi) },
+            onRemove = { removeManual(id) },
             onSaveGlossary = { vi -> saveToGlossary(id, b.ja, vi) },
             onAsk = { ja, back -> askGemini(ja, back) },
+            onLocal = { ja, back -> translateOnePhrase(ja, back) },
             // Tam ngung bo canh trang trong luc panel mo. Panel la lop phu cua
             // CHINH ta va no phu kin trang, nen khong ngung thi bo canh ket
             // luan nguoi dung da lat trang roi go sach ban dich dang sua. Do
@@ -685,7 +731,18 @@ class CaptureService : Service() {
         ).also { editor = it }
 
         ov.selfChanging.set(true)
-        panel.show(b.ja, b.vi.orEmpty())
+        // Id am = lop de thu cong (xem `nextManualId`) -> cho go han.
+        panel.show(b.ja, b.vi.orEmpty(), removable = id < 0)
+    }
+
+    /** Go mot lop de thu cong, tra lai tranh goc o dung cho do. */
+    private fun removeManual(id: Int) {
+        val ov = overlays ?: return
+        currentPage = currentPage?.let { p -> p.withBubbles(p.bubbles.filterNot { it.id == id }) }
+        scope.launch {
+            withContext(Dispatchers.Main) { ov.translation.retract(listOf(id)) }
+            toast("Đã gỡ lớp đè.")
+        }
     }
 
     /** Goi Gemini ho panel — panel khong giu scope rieng. */
@@ -762,6 +819,10 @@ class CaptureService : Service() {
             overlays?.translation?.let { ov ->
                 withContext(Dispatchers.Main) { ov.replace(edited) }
             }
+            // `contentKey` rong = trang nay khong den tu day chuyen (lop de thu
+            // cong khi chua dich trang nao). Khong co khoa that thi khong ghi
+            // cache — ghi vao se de lai mot file ten rong, doc ra la rac.
+            if (page.contentKey.isBlank()) return@launch
             runCatching {
                 app.mangatrans.adapters.storage.FileCache(
                     java.io.File(cacheDir, "pages")
@@ -809,12 +870,145 @@ class CaptureService : Service() {
             (boxOnScreen.y2 - dy).coerceIn(0, bmp.height),
         )
         val text = runCatching { ocr.read(shot, box) }.getOrDefault("")
-        runCatching { bmp.recycle() }
+        // ⚠️ KHONG thu hoi `bmp` o day nua. Neu nguoi dung bam "De len trang"
+        // thi chinh anh nay lam nen de lay mau mau — thu hoi som la `getPixel`
+        // no ngay va **chet ca app** (da mac dung mot lan).
+        //
+        // Quyen so huu: giu o `grabShot`. Giao cho lop phu thi dat null (lop
+        // phu tu thu hoi khi `clear()`); khong giao thi thu hoi luc dong panel.
         setIconState(if (src.isAlive) FloatingIcon.State.Ready else FloatingIcon.State.NeedPermission)
 
-        if (text.isBlank()) { toast("Không đọc được chữ nào trong khung đó."); return }
+        if (text.isBlank()) {
+            runCatching { bmp.recycle() }
+            toast("Không đọc được chữ nào trong khung đó.")
+            return
+        }
+        grabShot = bmp
         // KHONG ghi `text` ra log — do la noi dung man hinh rieng cua nguoi dung.
-        startActivity(app.mangatrans.ui.GrabTextActivity.intent(this, text))
+        withContext(Dispatchers.Main) { showGrabResult(src, bmp, box, text) }
+    }
+
+    // ---------- khoanh chu -> dich -> de len trang ----------
+
+    /**
+     * ⚠️ Anh chup **khong** duoc `recycle()` o day.
+     *
+     * Muon ve de len trang thi phai co anh goc de lay mau mau nen. Neu chua co
+     * trang nao dang hien thi chinh anh vua chup se lam nen — nen no phai song
+     * den luc do. `TranslationOverlay.clear()` se thu hoi no sau.
+     */
+    private fun showGrabResult(
+        src: MediaProjectionSource,
+        shot: Bitmap,
+        box: app.mangatrans.domain.Box,
+        ja: String,
+    ) {
+        val ov = overlays ?: return
+        val panel = grabPanel ?: GrabResultOverlay(
+            this,
+            getSystemService(WINDOW_SERVICE) as WindowManager,
+            onLocal = { s, back -> translateOnePhrase(s, back) },
+            onGemini = { s, back -> askGemini(s, back) },
+            onDraw = { vi -> drawManual(box, ja, vi) },
+            onSaveGlossary = { vi -> saveToGlossary(-1, ja, vi) },
+            onClosed = {
+                // Khong giao cho lop phu thi phai tu don.
+                grabShot?.let { s -> runCatching { s.recycle() } }
+                grabShot = null
+                source?.drainFrames()
+                ov.selfChanging.set(false)
+            },
+        ).also { grabPanel = it }
+
+        ov.selfChanging.set(true)
+        panel.show(ja)
+    }
+
+    /**
+     * Dich MOT cum le tren may.
+     *
+     * Noi vao phien cua trang dang mo neu con (`continuing = true`) — do duoc
+     * la ~3,9 giay thay vi ~17 giay, vi khong phai doc lai prompt he thong.
+     * Khong con phien thi mo phien moi va chiu ca gia do.
+     */
+    private fun translateOnePhrase(ja: String, back: (Result<String>) -> Unit) {
+        val tr = engines?.translator
+        if (tr == null) { back(Result.failure(IllegalStateException("mô hình chưa sẵn sàng"))); return }
+        scope.launch {
+            val r = runCatching {
+                val b = app.mangatrans.domain.Bubble(
+                    id = 0, box = app.mangatrans.domain.Box(0, 0, 1, 1),
+                    kind = app.mangatrans.domain.RegionKind.TextBubble,
+                    detectScore = 1f, ja = ja,
+                )
+                val job = app.mangatrans.domain.PageJob(
+                    jobId = "grab", frameHash = "", contentKey = "",
+                    pageWidth = 0, pageHeight = 0,
+                    bubbles = listOf(b), readingOrder = listOf(0),
+                )
+                var out: String? = null
+                // ⚠️ KHONG loc theo `id == 0`. Chi co MOT bong trong yeu cau,
+                // nhung mo hinh khong phai luc nao cung tra ve dung id da cho —
+                // do that: no sinh ra ban dich (log "bubble dau tien sau
+                // 18606 ms") ma van bao "khong tra loi" vi id lech. Lay cau
+                // dau tien co chu la dung.
+                tr.translate(job, emptyList(), continuing = currentPage != null).collect { bt ->
+                    if (out == null) out = bt.vi?.takeIf { v -> v.isNotBlank() }
+                }
+                out ?: error("mô hình không trả lời")
+            }
+            withContext(Dispatchers.Main) { back(r) }
+        }
+    }
+
+    /**
+     * Ve ban dich de len dung khung nguoi dung vua khoanh.
+     *
+     * Lop de nay la **mot bubble nhu moi bubble khac** — nho vay cham giu de he
+     * nguyen ban va cham hai cai de sua deu tu chay dung, khong phai viet rieng.
+     * Chi khac o `id` am, de phan biet voi bubble do day chuyen sinh ra.
+     */
+    private fun drawManual(box: app.mangatrans.domain.Box, ja: String, vi: String) {
+        val ov = overlays ?: return
+        val tf = engines?.typeface ?: android.graphics.Typeface.SANS_SERIF
+        val shot = grabShot
+        scope.launch {
+            // Chua co trang nao dang hien -> lay chinh anh vua chup lam nen.
+            // Giao luon quyen so huu: tu day lop phu chiu trach nhiem thu hoi.
+            if (ov.translation.frameHash == null) {
+                if (shot == null || shot.isRecycled) {
+                    toast("Ảnh nền không còn — chạm icon để dịch trang trước đã.")
+                    return@launch
+                }
+                grabShot = null
+                ov.beginPage(shot, PageHash.frameHash(shot, 0), statusBarHeight(), tf)
+            }
+            val id = nextManualId--
+            val b = app.mangatrans.domain.Bubble(
+                id = id, box = box,
+                kind = app.mangatrans.domain.RegionKind.TextFree,
+                // Giu nguyen ban: o sua can no de hien, va no la thu duy nhat
+                // cho biet lop de nay tu chu nao ra.
+                detectScore = 1f, ja = ja, vi = vi,
+            )
+            // ⚠️ Phai TU TAO `currentPage` neu chua co.
+            //
+            // Nguoi dung hoan toan co the khoanh chu ma chua tung dich trang
+            // nao — luc do `currentPage` la null, va neu chi `?.let` thi lop de
+            // khong duoc ghi vao dau ca. Hau qua: no ve ra man hinh nhung cham
+            // hai cai vao khong mo duoc o sua, vi `openBubbleEditor` tim trong
+            // `currentPage` khong thay. Da mac dung mot lan.
+            //
+            // `contentKey` de rong co chu y — xem `applyEdit`: rong thi khong
+            // ghi cache, vi khong co trang that nao de gan vao.
+            val page = currentPage ?: app.mangatrans.domain.PageJob(
+                jobId = "manual", frameHash = "", contentKey = "",
+                pageWidth = 0, pageHeight = 0,
+            )
+            currentPage = page.withBubbles(page.bubbles + b)
+            withContext(Dispatchers.Main) { ov.translation.add(b) }
+            toast("Đã đè lên trang. Chạm hai cái vào đó để sửa hoặc gỡ.")
+        }
     }
 
     private fun openGuide() = startActivity(

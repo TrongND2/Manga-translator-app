@@ -1,7 +1,6 @@
 package app.mangatrans.adapters.overlay
 
 import android.content.Context
-import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -20,37 +19,27 @@ import android.widget.TextView
 import app.mangatrans.ui.Ui
 
 /**
- * Sua ban dich cua MOT bong thoai, **ngay tren trang dang doc**.
+ * Chu vua khoanh duoc: dich no, va de ban dich len dung cho do tren trang.
  *
- * Vi sao la cua so noi chu khong phai mot Activity: ban dau man nay lam bang
- * Activity, va no hong theo mot kieu rat dep — Activity kin man hinh nen bo
- * canh trang (F61/F64) thay khung hinh doi that va ket luan nguoi dung da lat
- * trang, roi **go sach lop phu dung cai ta dang sua**. Do duoc tren may:
+ * Vi sao la cua so noi chu khong phai Activity: ban truoc la `GrabTextActivity`
+ * — mot man hinh kin. Ma man hinh kin thi bo canh trang (F61/F64) ket luan
+ * nguoi dung da roi trang va **go sach lop phu** — dung cai lop ma tinh nang
+ * nay muon ve them vao. Cung bai hoc voi F68, chi khac cho.
  *
- * ```
- * 20:23:13  man hinh doi (khac 0.94) — dung dich, go lop phu
- * ```
+ * Hai duong dich, de canh nhau va ghi ro GIA cua tung duong, vi chung chenh
+ * nhau hang chuc lan:
  *
- * Co the va bang cach tam dung bo canh, nhung nhu the la chua trieu chung.
- * Nguyen nhan that la **roi trang** — nen dung roi trang nua. Cua so noi thi
- * app doc truyen khong he bi day xuong nen, trang van nam nguyen do, va bong
- * thoai dang sua van nhin thay ngay ben canh o nhap.
- *
- * ⚠️ Cua so nay **nhan ban phim** (khong dat `FLAG_NOT_FOCUSABLE`), vi nguoi
- * dung phai go chu vao day. Doi lai la no nuot phim Back, nen phai tu bat
- * `KEYCODE_BACK` de dong — khong co Activity nao lam ho viec do.
+ *   - **tren may**  : ~3 s neu trang nay vua dich xong (noi vao phien dang mo),
+ *                     ~20 s neu chua (phai doc lai prompt he thong tu dau).
+ *   - **Gemini**    : ~1 s, nhung can mang va an vao han muc ngay.
  */
-class EditBubbleOverlay(
+class GrabResultOverlay(
     private val ctx: Context,
     private val wm: WindowManager,
-    private val onSavePage: (String) -> Unit,
-    /** Go han lop de thu cong. Chi hien voi lop do, khong hien voi bong thoai. */
-    private val onRemove: () -> Unit,
-    private val onSaveGlossary: (String) -> Unit,
-    /** Goi Gemini o ngoai (service giu scope); tra ket qua ve qua callback. */
-    private val onAsk: (String, (Result<String>) -> Unit) -> Unit,
-    /** Dich bang mo hinh chay tren may — duong du phong khi Gemini het luot. */
     private val onLocal: (String, (Result<String>) -> Unit) -> Unit,
+    private val onGemini: (String, (Result<String>) -> Unit) -> Unit,
+    private val onDraw: (String) -> Unit,
+    private val onSaveGlossary: (String) -> Unit,
     private val onClosed: () -> Unit,
 ) {
 
@@ -63,13 +52,7 @@ class EditBubbleOverlay(
 
     val isOpen: Boolean get() = attached
 
-    /**
-     * @param removable lop nay co go han duoc khong. Bong thoai do day chuyen
-     *   sinh ra thi KHONG — go mot bong le se de lai mot lo tren trang ma
-     *   khong co duong nao lay lai. Lop de thu cong thi go duoc, vi no che len
-     *   tranh goc va nguoi dung phai lay lai tranh duoc.
-     */
-    fun show(ja: String, vi: String, removable: Boolean = false) {
+    fun show(ja: String) {
         if (attached) hide()
 
         val jaView = TextView(ctx).apply {
@@ -80,13 +63,14 @@ class EditBubbleOverlay(
             setLineSpacing(dp(4).toFloat(), 1f)
         }
         val field = EditText(ctx).apply {
-            setText(vi)
+            hint = "Nghĩa tiếng Việt"
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f)
-            setSelection(text.length)
         }
         input = field
         val st = Ui.hint(ctx, "").also { status = it }
+
+        fun typed(): String = field.text.toString().trim()
 
         val card = LinearLayout(ctx).apply {
             orientation = LinearLayout.VERTICAL
@@ -98,53 +82,54 @@ class EditBubbleOverlay(
             elevation = dp(8).toFloat()
 
             addView(TextView(ctx).apply {
-                text = "Sửa bóng thoại này"
+                text = "Chữ vừa lấy"
                 setTextSize(TypedValue.COMPLEX_UNIT_SP, 17f)
                 setTypeface(null, Typeface.BOLD)
                 setTextColor(0xFF212121.toInt())
                 setPadding(0, 0, 0, dp(10))
             })
             addView(Ui.panel(ctx, Ui.C.neutral, jaView))
-            addView(Ui.hint(ctx, "Bản dịch"))
             addView(field)
             addView(Ui.buttonRow(
                 ctx,
                 Ui.smallButton(ctx, "📱  AI trên máy", Ui.C.primary) {
-                    status?.text = "Đang dịch trên máy..."
-                    onLocal(ja) { r -> fill(r) }
+                    st.text = "Đang dịch trên máy..."
+                    onLocal(ja) { r -> back(r) }
                 },
-                Ui.smallButton(ctx, "✨  Hỏi Gemini", Ui.C.info) { ask(ja) },
+                Ui.smallButton(ctx, "✨  Hỏi Gemini", Ui.C.info) {
+                    st.text = "Đang hỏi Gemini..."
+                    onGemini(ja) { r -> back(r) }
+                },
             ))
             addView(st)
+            addView(Ui.hint(
+                ctx,
+                "\"AI trên máy\" dùng chính mô hình dịch trong điện thoại — không cần " +
+                    "mạng, không tốn lượt. Chậm hơn Gemini nhưng luôn dùng được.",
+            ))
+
             addView(Ui.gap(ctx, 6))
-            addView(Ui.button(ctx, "Lưu cho riêng trang này") {
-                val s = field.text.toString().trim()
-                if (s.isEmpty()) { st.text = "Bản dịch đang để trống." }
-                else { onSavePage(s); hide() }
-            })
-            addView(Ui.button(ctx, "Lưu vào từ điển riêng", Ui.C.glossary, Ui.Weight.Tonal) {
-                val s = field.text.toString().trim()
-                if (s.isEmpty()) { st.text = "Bản dịch đang để trống." }
-                else { onSaveGlossary(s); hide() }
+            addView(Ui.button(ctx, "Đè bản dịch lên trang") {
+                val s = typed()
+                if (s.isEmpty()) st.text = "Chưa có nghĩa để đè. Dịch hoặc tự gõ trước."
+                else { onDraw(s); hide() }
             })
             addView(Ui.hint(
                 ctx,
-                "\"Từ điển riêng\" áp cho MỌI trang về sau — chỉ nên dùng khi cụm " +
-                    "chữ Nhật ở trên là cụm lặp lại (tên nhân vật, thành ngữ, xưng hô).",
+                "Vẽ đè lên đúng khung bạn vừa khoanh. Chạm giữ để hé chữ gốc, " +
+                    "chạm hai cái để sửa hoặc gỡ.",
             ))
-            if (removable) {
-                addView(Ui.gap(ctx, 12))
-                addView(Ui.button(ctx, "Gỡ lớp này", Ui.C.danger, Ui.Weight.Quiet) {
-                    onRemove(); hide()
-                })
-                addView(Ui.hint(ctx, "Trả lại tranh gốc ở đúng chỗ này."))
-            }
+
+            addView(Ui.gap(ctx, 12))
+            addView(Ui.button(ctx, "Lưu vào từ điển riêng", Ui.C.glossary, Ui.Weight.Tonal) {
+                val s = typed()
+                if (s.isEmpty()) st.text = "Chưa có nghĩa để lưu."
+                else { onSaveGlossary(s); hide() }
+            })
             addView(Ui.gap(ctx, 8))
             addView(Ui.button(ctx, "Đóng", Ui.C.neutral, Ui.Weight.Quiet) { hide() })
         }
 
-        // Nen toi: vua tach cai the ra khoi trang truyen, vua la cho de cham
-        // ra ngoai cho dong.
         val frame = object : FrameLayout(ctx) {
             override fun dispatchKeyEvent(e: KeyEvent): Boolean {
                 if (e.keyCode == KeyEvent.KEYCODE_BACK && e.action == KeyEvent.ACTION_UP) {
@@ -156,7 +141,6 @@ class EditBubbleOverlay(
             setBackgroundColor(0xB0000000.toInt())
             setOnClickListener { hide() }
             addView(ScrollView(ctx).apply {
-                isFillViewport = false
                 addView(card, FrameLayout.LayoutParams(
                     FrameLayout.LayoutParams.MATCH_PARENT,
                     FrameLayout.LayoutParams.WRAP_CONTENT,
@@ -169,7 +153,6 @@ class EditBubbleOverlay(
                 Gravity.CENTER_VERTICAL,
             ))
         }
-        // Cham vao the thi khong duoc coi la cham ra ngoai.
         card.isClickable = true
         card.setOnClickListener { }
 
@@ -177,16 +160,11 @@ class EditBubbleOverlay(
         runCatching { wm.addView(frame, params()) }.onSuccess { attached = true }
     }
 
-    private fun ask(ja: String) {
-        status?.text = "Đang hỏi Gemini..."
-        onAsk(ja) { r -> fill(r) }
-    }
-
-    private fun fill(r: Result<String>) {
+    private fun back(r: Result<String>) {
         val st = status ?: return
         r.onSuccess {
             input?.setText(it)
-            st.text = "Xong — sửa lại nếu thấy chưa đúng rồi bấm Lưu."
+            st.text = "Xong — sửa lại nếu cần, rồi bấm Đè hoặc Lưu."
         }.onFailure { st.text = "Không dịch được: ${it.message}" }
     }
 
@@ -198,12 +176,7 @@ class EditBubbleOverlay(
         onClosed()
     }
 
-    /**
-     * ⚠️ KHONG dat `FLAG_NOT_FOCUSABLE`: cua so nay phai nhan duoc ban phim.
-     *
-     * Cung vi the KHONG dat `FLAG_LAYOUT_NO_LIMITS` — co do chan `ADJUST_RESIZE`,
-     * va khi do ban phim len se che mat cac nut Luu.
-     */
+    /** Xem ghi chu o `EditBubbleOverlay.params` — cung ly do, cung bay. */
     private fun params() = WindowManager.LayoutParams(
         WindowManager.LayoutParams.MATCH_PARENT,
         WindowManager.LayoutParams.MATCH_PARENT,

@@ -3540,6 +3540,98 @@ release cua chinh minh**.
 trong mot buoi.
 ---
 
+## F75 — Chu ngoai bong thoai: khoanh, dich, de len trang. Va ba cai bay khi lam
+
+Huong dan cua app tu lau van phai thu nhan: *"Chu hieu ung ngoai bong thoai van
+la tieng Nhat — bo nhan dien gan nhu khong bat duoc loai chu nay."* Nguoi dung
+hoi co the khoanh tay roi de ban dich len khong. Lam duoc, va may moc gan nhu
+co san — nhung ba cho vap deu dang ghi.
+
+### Bay 1: man hinh kin tu giet cai no dang muon ve len
+
+`GrabTextActivity` la mot Activity kin man hinh. Ma tinh nang nay can ve len
+**chinh trang dang mo**. Mo Activity la bo canh trang ket luan nguoi dung roi
+trang roi **go sach lop phu**.
+
+Dung bai hoc F68, chi khac cho. Chuyen thanh cua so noi (`GrabResultOverlay`),
+app doc truyen khong bi day xuong nen. Da xoa han `GrabTextActivity`.
+
+### Bay 2: thu hoi anh chup roi moi can den no
+
+```
+FATAL EXCEPTION: java.lang.IllegalStateException:
+    Can't call getPixel() on a recycled bitmap
+  at PageHash.frameHash(FileCache.kt:156)
+  at CaptureService$drawManual$1.invokeSuspend(CaptureService.kt:952)
+```
+
+`grabText()` co san dong `bmp.recycle()` ngay sau OCR — dung khi anh chi de doc
+chu. Nhung muon **ve de** thi phai co anh goc lam nen de lay mau mau, va luc do
+anh da chet. **Chet ca app.**
+
+Chua bang cach noi ro quyen so huu: giu o `grabShot`; giao cho lop phu thi dat
+`null` (lop phu tu thu hoi khi `clear()`), khong giao thi thu hoi luc dong panel.
+
+### Bay 3: ve ra man hinh nhung cham vao khong mo duoc
+
+Lop de ve ra dung, nhung cham hai cai vao khong mo o sua. Vi:
+
+```kotlin
+currentPage = currentPage?.let { p -> p.withBubbles(p.bubbles + b) }
+```
+
+Nguoi dung hoan toan co the khoanh chu ma **chua tung dich trang nao** — luc do
+`currentPage` la `null`, `?.let` khong chay, va lop de khong duoc ghi vao dau.
+`openBubbleEditor` tim trong `currentPage` khong thay nen return im lang.
+
+Chua: tu tao `PageJob` rong neu chua co. Kem mot chot o `applyEdit` — `contentKey`
+rong thi **khong ghi cache**, neu khong se de lai mot file ten rong, doc ra la rac.
+
+### Bay 4: loc theo `id` khi chi co mot bong
+
+```
+log : bubble dau tien sau 18606 ms      <- mo hinh CO tra loi
+man : "Khong dich duoc: mo hinh khong tra loi"
+```
+
+Ma loc `if (bt.id == 0) out = bt.vi`, ma mo hinh tra ve id khac. Chi co MOT bong
+trong yeu cau nen loc theo id la thua va hong; lay cau dau tien co chu moi dung.
+
+### Thiet ke lop de: khong viet gi rieng
+
+Lop de thu cong la **mot `Bubble` nhu moi bubble khac**, chi khac `id` am. Nho
+vay:
+
+- cham giu de he nguyen ban -> chay dung, khong phai viet them
+- cham hai cai de sua -> chay dung
+- nut **"Go lop nay"** chi hien khi `id < 0`
+
+Nguoi dung chon dung phuong an nay khi duoc de xuat ba cach (dung lai cu chi da
+co / them icon con lam cong tac tong / tu bien mat khi cham ra ngoai). Cach nay
+khong ton them cho nao tren man hinh, va icon `✕` khong phai doi xa hon.
+
+### Hai duong dich, do that
+
+| | Thoi gian | Dieu kien |
+|---|---|---|
+| AI tren may | 18-25 s (12-17 s la doc lai prompt he thong) | khong can mang, khong gioi han |
+| Gemini | ~1 s | can mang, co han muc ngay |
+
+Do tren may: mot cum le, chua co phien nao mo -> prefill 17,4 s, ca luot 24,9 s.
+Neu vua dich trang do xong thi noi vao phien dang mo, chi con vai giay (F70).
+
+Nguoi dung goi dung van de cua ten nut dau tien: *"nut dich tren may la gi? doc
+cha hieu gi ca"*. Doi thanh **"📱 AI tren may"** kem mot dong giai thich ngay
+duoi. Va them no vao CA ba cho co "Hoi Gemini" — vi ly do nguoi dung neu:
+*"Lo het gemini con co tool ma dich"*.
+
+### Quy tac rut ra
+
+**Mot tinh nang moi dung lai may moc cu thi cung thua ke gia dinh cu.** Ba
+trong bon cai bay o day deu la gia dinh dung cho duong cu (anh chup chi de doc
+chu; `currentPage` luon co; id luon khop) va sai cho duong moi.
+---
+
 ## Còn nợ
 
 | # | Việc | Chặn gì | Trạng thái |

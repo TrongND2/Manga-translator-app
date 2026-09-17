@@ -173,6 +173,22 @@ class MediaProjectionSource(
      * Cat bo status bar y nhu `capture()`: dong ho nhay phut khong duoc tinh la
      * "nguoi dung sang trang".
      */
+    /**
+     * Khung hinh hien tai, GIU NGUYEN lop phu cua chinh app.
+     *
+     * Khac `capture()`: ham do AN lop phu di truoc khi chup vi no phuc vu viec
+     * doc chu. Cho nay can dung cai nguoc lai — chup y het nhung gi bo canh
+     * trang dang nhin thay, de xem cai gi da lam no bao dong.
+     *
+     * Chi dung cho duong chan doan. Nguoi goi phai tu `recycle()`.
+     */
+    fun peekBitmap(): Bitmap? {
+        if (stopped.get() || released.get()) return null
+        val r = reader ?: return null
+        val image = runCatching { r.acquireLatestImage() }.getOrNull() ?: return null
+        return image.use { runCatching { toBitmap(it) }.getOrNull() }
+    }
+
     fun peekFrameSignature(exclude: List<app.mangatrans.domain.Box> = emptyList()): FloatArray? {
         if (stopped.get() || released.get()) return null
         val r = reader ?: return null

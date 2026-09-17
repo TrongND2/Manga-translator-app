@@ -42,6 +42,7 @@ Cử chỉ:
 | **Giữ icon** | 📖 hướng dẫn · ⌖ khoanh lấy chữ · ✕ tắt app |
 | **Chạm giữ vào bóng thoại** | xem lại chữ Nhật gốc của riêng bóng đó |
 | **Chạm hai cái vào bóng thoại** | sửa bản dịch của bóng đó, ngay trên trang |
+| **Giữ icon → ⌖** | khoanh chữ ngoài bóng thoại, dịch rồi đè lên trang |
 | **Lật trang / chuyển app** | dừng dịch ngay, gỡ bản dịch cũ |
 
 > Trang đầu mất khoảng 3 phút — mô hình phải đọc hết trang trước khi dịch, không phải app treo. Trang đã dịch rồi thì gần như tức thì.
@@ -61,6 +62,14 @@ Hai cách lưu, khác nhau rõ:
 
 Vì sao phải sửa chứ không phải xoá rồi dịch lại: đo trên máy thật, dịch lại cùng một trang cho **5/5 câu giống hệt từng chữ** — mô hình không hề ngẫu nhiên. Xoá chỉ trả về đúng cái sai cũ.
 
+## ⌖ Chữ ngoài bóng thoại — khoanh rồi đè bản dịch lên
+
+Chữ hiệu ứng và chữ nằm ngoài bóng thoại thì bộ nhận diện gần như không bắt được. Giữ icon → chạm `⌖` → kéo một khung quanh chữ đó. App đọc chữ Nhật trong khung, dịch, rồi bấm **Đè bản dịch lên trang**.
+
+Lớp đè này hành xử **y như một bóng thoại bình thường**: chạm giữ để hé chữ gốc, chạm hai cái để sửa hoặc **Gỡ lớp này** trả lại tranh.
+
+> Chữ hiệu ứng thường nằm đè lên tranh, nên chỗ đè sẽ là một mảng màu che mất nét vẽ. Xem xong thì gỡ đi.
+
 ## ⌖ Khoanh lấy chữ → từ điển riêng
 
 Giữ icon → chạm `⌖` → kéo một khung quanh chữ cần lấy. App đọc chữ Nhật trong khung ra, bạn gõ nghĩa tiếng Việt rồi lưu.
@@ -69,9 +78,18 @@ Giữ icon → chạm `⌖` → kéo một khung quanh chữ cần lấy. App đ
 
 Thêm một mục xong, app **tự quét lại những trang đã dịch và chỉ quên đúng những trang có chứa cụm đó** — các trang khác giữ nguyên, và nó báo cho bạn biết bao nhiêu trang sẽ được dịch lại. Không phải sửa từng trang một, cũng không phải xoá sạch.
 
-## 🔍 Tra nghĩa bằng Gemini — tuỳ chọn, mặc định tắt
+## Hai nút dịch, ở cả ba chỗ
 
-Nút **Hỏi Gemini** có ở ba chỗ — ô sửa bóng thoại, màn khoanh lấy chữ, và ô thêm mục ở Từ điển riêng — để lấy nhanh nghĩa gợi ý khi bạn không chắc.
+Ô sửa bóng thoại, màn khoanh lấy chữ, và ô thêm mục ở Từ điển riêng đều có hai nút:
+
+| | Thời gian | Điều kiện |
+|---|---|---|
+| **📱 AI trên máy** | ~20 giây, hoặc vài giây nếu vừa dịch trang đó | không cần mạng, **không giới hạn số lần** |
+| **✨ Hỏi Gemini** | ~1 giây | cần mạng, cần khoá, có hạn mức theo ngày |
+
+"AI trên máy" dùng **chính mô hình vẫn dịch cả trang** cho bạn — nên khi Gemini hết lượt hoặc máy chủ quá tải, bạn vẫn còn đường dùng.
+
+## 🔍 Tra nghĩa bằng Gemini — tuỳ chọn, mặc định tắt
 
 Đây là **đường ra mạng duy nhất** của app, và nó được giữ rất hẹp:
 

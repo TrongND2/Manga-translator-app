@@ -115,8 +115,9 @@ class GuideActivity : AppCompatActivity() {
         )
         root.addView(
             note(
-                "Chữ hiệu ứng ngoài bóng thoại vẫn là tiếng Nhật.",
-                "Bộ nhận diện gần như không bắt được loại chữ này.",
+                "Chữ hiệu ứng ngoài bóng thoại không được dịch tự động.",
+                "Bộ nhận diện gần như không bắt được loại chữ này. Nhưng bạn khoanh " +
+                    "tay được — xem mục ⌖ bên dưới.",
             )
         )
 
@@ -134,7 +135,20 @@ class GuideActivity : AppCompatActivity() {
         )
         root.addView(
             card(
-                "⌖", 0xFF00695C.toInt(), "Khoanh lấy chữ rồi tự đặt nghĩa",
+                "⌖", 0xFF00695C.toInt(), "Chữ NGOÀI bóng thoại: khoanh rồi đè bản dịch lên",
+                "Chữ hiệu ứng và chữ nằm ngoài bóng thoại thì bộ nhận diện gần như " +
+                    "không bắt được. Giữ icon → chạm ⌖ → kéo một khung quanh chữ đó. " +
+                    "App đọc chữ Nhật trong khung, dịch, rồi bạn bấm \"Đè bản dịch lên " +
+                    "trang\" là bản dịch hiện ngay tại chỗ đó.\n\n" +
+                    "Lớp đè này hành xử như một bóng thoại bình thường: chạm giữ để hé " +
+                    "chữ gốc, chạm hai cái để sửa hoặc \"Gỡ lớp này\" trả lại tranh.\n\n" +
+                    "Lưu ý: chữ hiệu ứng thường nằm đè lên tranh, nên chỗ đè sẽ là một " +
+                    "mảng màu che mất nét vẽ. Xem xong thì gỡ đi.",
+            )
+        )
+        root.addView(
+            card(
+                "A", 0xFFEF6C00.toInt(), "Khoanh lấy chữ rồi tự đặt nghĩa",
                 "Giữ icon → chạm ⌖ → kéo một khung quanh chữ cần lấy. App đọc chữ " +
                     "Nhật trong khung ra, bạn gõ nghĩa tiếng Việt rồi lưu.\n\n" +
                     "Đây là cách CHẮC CHẮN NHẤT để sửa một chỗ dịch sai: mô hình chạy " +
@@ -160,13 +174,26 @@ class GuideActivity : AppCompatActivity() {
             )
         )
 
-        root.addView(heading("Tra nghĩa bằng Gemini"))
+        root.addView(heading("Hai nút dịch, chọn cái nào?"))
         root.addView(
             note(
-                "Tuỳ chọn, mặc định tắt.",
-                "Có nút Hỏi Gemini để lấy nhanh nghĩa gợi ý — tiện khi bạn không chắc " +
-                    "cụm đó nghĩa gì. Nút này có ở ba chỗ: ô sửa bóng thoại, màn khoanh " +
-                    "lấy chữ, và ô thêm mục ở Từ điển riêng.",
+                "📱 AI trên máy — luôn dùng được",
+                "Dùng chính mô hình dịch nằm trong điện thoại, cùng mô hình vẫn dịch " +
+                    "cả trang cho bạn. Không cần mạng, không tốn lượt, không giới hạn " +
+                    "số lần.\n\n" +
+                    "Chậm hơn: khoảng 20 giây cho một cụm, vì mô hình phải đọc lại " +
+                    "hướng dẫn trước khi dịch. Nếu vừa dịch trang đó xong thì chỉ mất " +
+                    "vài giây, vì nó nối tiếp phiên đang mở.",
+            )
+        )
+        root.addView(
+            note(
+                "✨ Hỏi Gemini — nhanh, nhưng có hạn mức",
+                "Khoảng 1 giây. Cần mạng và cần khoá miễn phí (hướng dẫn lấy nằm ở " +
+                    "Cài đặt). Hạn mức tính theo ngày và do Google quyết, nên có lúc " +
+                    "báo hết lượt hoặc máy chủ quá tải — khi đó dùng AI trên máy.\n\n" +
+                    "Cả hai nút đều có ở ba chỗ: ô sửa bóng thoại, màn khoanh lấy chữ, " +
+                    "và ô thêm mục ở Từ điển riêng.",
             )
         )
         root.addView(

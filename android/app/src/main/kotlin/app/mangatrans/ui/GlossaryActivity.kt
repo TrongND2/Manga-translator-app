@@ -16,6 +16,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
+import app.mangatrans.Composition
 import app.mangatrans.adapters.cloud.GeminiLookup
 import app.mangatrans.adapters.storage.JsonGlossaryStore
 import app.mangatrans.ports.GlossaryEntry
@@ -289,6 +290,9 @@ class GlossaryActivity : AppCompatActivity() {
         // la thu DIEN vao o do. Dat cuoi form thi khong ai noi duoc no dien vao
         // dau.
         val askStatus = Ui.hint(this, "")
+        val local = Ui.smallButton(this, "📱  AI trên máy", Ui.C.primary) {
+            askLocal(surface.text.toString().trim(), meaning, askStatus)
+        }
         val ask = Ui.smallButton(this, "✨  Hỏi Gemini", Ui.C.info) {
             askGemini(surface.text.toString().trim(), meaning, askStatus)
         }
@@ -302,6 +306,7 @@ class GlossaryActivity : AppCompatActivity() {
             addView(meaning)
             addView(LinearLayout(this@GlossaryActivity).apply {
                 orientation = LinearLayout.HORIZONTAL
+                addView(local)
                 addView(ask)
             })
             addView(askStatus)
@@ -372,6 +377,51 @@ class GlossaryActivity : AppCompatActivity() {
                     status.text = "Gemini gợi ý — sửa lại nếu thấy chưa đúng rồi bấm Lưu."
                 }
                 .onFailure { status.text = "Không hỏi được: ${it.message}" }
+        }
+    }
+
+    /**
+     * Dich bang mo hinh chay TREN MAY — duong du phong khi Gemini het luot
+     * hoac khong co mang.
+     *
+     * ⚠️ Cham hon Gemini mot troi mot vuc: mo hinh phai nap (~2,6 GB) roi doc
+     * prompt he thong truoc khi sinh chu — do duoc ~20 giay cho mot cum, so
+     * voi ~1 giay cua Gemini. Noi truoc cho nguoi dung khoi tuong treo.
+     *
+     * `Composition.engines` la ban dung chung CA TIEN TRINH, nen neu icon dich
+     * dang bat thi mo hinh da nap san va cho nay nhanh hon nhieu.
+     */
+    private fun askLocal(ja: String, into: EditText, status: TextView) {
+        if (ja.isEmpty()) { status.text = "Điền ô nguyên bản tiếng Nhật trước đã."; return }
+        status.text = "Đang nạp mô hình và dịch trên máy... (có thể mất ~20 giây)"
+        lifecycleScope.launch {
+            val r = runCatching {
+                val tr = Composition.engines(this@GlossaryActivity) {}.translator
+                val b = app.mangatrans.domain.Bubble(
+                    id = 0, box = app.mangatrans.domain.Box(0, 0, 1, 1),
+                    kind = app.mangatrans.domain.RegionKind.TextBubble,
+                    detectScore = 1f, ja = ja,
+                )
+                val job = app.mangatrans.domain.PageJob(
+                    jobId = "glossary", frameHash = "", contentKey = "",
+                    pageWidth = 0, pageHeight = 0,
+                    bubbles = listOf(b), readingOrder = listOf(0),
+                )
+                var out: String? = null
+                // ⚠️ KHONG loc theo `id == 0`. Chi co MOT bong trong yeu cau,
+                // nhung mo hinh khong phai luc nao cung tra ve dung id da cho —
+                // do that: no sinh ra ban dich (log "bubble dau tien sau
+                // 18606 ms") ma van bao "khong tra loi" vi id lech. Lay cau
+                // dau tien co chu la dung.
+                tr.translate(job, emptyList()).collect { bt ->
+                    if (out == null) out = bt.vi?.takeIf { v -> v.isNotBlank() }
+                }
+                out ?: error("mô hình không trả lời")
+            }
+            r.onSuccess {
+                into.setText(it)
+                status.text = "AI trên máy trả lời xong — sửa lại nếu cần rồi bấm Lưu."
+            }.onFailure { status.text = "Không dịch được: ${it.message}" }
         }
     }
 
