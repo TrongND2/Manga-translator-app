@@ -3329,6 +3329,70 @@ khong can Wi-Fi.
 dung ba gia thuyet va do ba lan truoc khi mo file log ra doc.
 ---
 
+## F72 — Tran 10 bong la `maxNumTokens`, khong phai mo hinh. Nhung go tran ra thi CHAM hon
+
+F71 de lai mot manh moi: cung mo hinh `gemma4:e2b` tra **13/13 bong trong mot
+lan goi** tren PC, trong khi F58 do duoc no dung o **dung 10 bong** tren may.
+Cung mo hinh, khac ket qua => tran nam o cach app goi.
+
+### Manh moi khop den muc khong the la trung hop
+
+Do tren PC: prompt **941 token** + bai lam **1540 token** = 2481 token cho 13
+bong. Neu tran ca cuoc la 2048 thi voi prompt 941 token chi con ~1100 token cho
+bai lam — **vua dung 10 bong**.
+
+`javap` tren AAR: `EngineConfig.getMaxNumTokens()` co ton tai. App **chua bao
+gio dat no** — nhan mac dinh cua thu vien ma khong biet no la bao nhieu.
+
+F58 da chinh **nham nut**: `maxOutputToken` la tran *bai lam*, con
+`maxNumTokens` la tran *ca cuoc*. Nang cai thu nhat khong cuu duoc gi khi cai
+thu hai moi la cho that su cat.
+
+Dat `maxNumTokens = 4096` va `MAX_PER_CALL = 20`: may tra **13/13 bong trong
+MOT lan goi**. Tran bien mat that.
+
+### Nhung go tran ra roi thi lai cham hon
+
+Do tren dung mot trang 13 bong, ba cau hinh:
+
+| | prefill dot 1 | ca trang |
+|---|---|---|
+| ngu canh mac dinh, 2 dot (F70) | 17,3 s | 122,4 s |
+| 4096, **1 lan goi** | 22,2 s | **142,2 s** |
+| 4096, **2 dot** | **12,9 s** | **114,8 s** |
+
+Mot lan goi **cham hon 20 giay**.
+
+### Vi sao — va day moi la phan dang nho
+
+Vi **F70 da lay mat phan thuong truoc roi**. Dung lai phien cho dot 2 nghia la
+dot 2 **da nhin thay ban dich cua dot 1**. Cai loi chinh cua "ca trang trong
+mot lan goi" (du ngu canh cho xung ho) phan lon da thu duoc, con phan con lai
+khong bu noi chi phi ngu canh dai hon.
+
+Doi chieu ban dich hai cach tren cung trang: gan nhu khong khac. Chi mot cho
+hon ro (「言ってなかった?」 giu duoc phu dinh), vai cho trau chuot hon chut, va
+**cac loi cu van y nguyen** (sot `ッ`, doc `美月` thanh "Miyuki"/"Mitsu").
+
+### Chot
+
+- `MAX_PER_CALL` tra ve **10**.
+- `maxNumTokens = 4096` **giu lai**: khong lam cham (114,8 s so voi 122,4 s —
+  chenh nay nam trong khoang nhieu giua cac lan chay, nen chi dam noi la
+  *khong cham hon*), va no bo mot cai tran an. Phien dung chung qua nhieu dot
+  se day dan len; tran ngam thi mo hinh mat ngu canh ma khong ai bao.
+
+### Quy tac rut ra
+
+**Mot toi uu chi dang gia mot lan.** F70 va thi nghiem nay nham vao cung mot
+thu — cho dot sau co ngu canh cua dot truoc. Lam cai re truoc (dung lai phien)
+roi thi cai dat (goi ca trang mot lan) khong con gi de thu, chi con chi phi.
+
+**Va: mot hang so khong dat KHONG phai la "khong co".** `maxNumTokens` de
+trong suot may thang, va mac dinh cua no la cai da sinh ra F58 — mot ket luan
+sai ve nang luc cua mo hinh, song duoc ba tuan.
+---
+
 ## Còn nợ
 
 | # | Việc | Chặn gì | Trạng thái |

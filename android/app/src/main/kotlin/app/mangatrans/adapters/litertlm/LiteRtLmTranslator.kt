@@ -58,6 +58,36 @@ class LiteRtLmTranslator(
     private companion object {
         const val TAG = "LiteRtLmTranslator"
 
+        /**
+         * Tran CA CUOC — prompt CONG bai lam. App truoc day **khong dat**, tuc
+         * la nhan mac dinh cua thu vien ma khong biet no la bao nhieu.
+         *
+         * ⚠️ Day moi la cai tran cat ngang bai lam, KHAC han `maxOutputToken`.
+         * F58 do duoc mo hinh dung o **dung 10 bong**, da thu nang
+         * `maxOutputToken` len 2048 va van dung o 10 — nen ket luan luc do la
+         * "mo hinh mat mach". Ket luan do **sai**: F71 do tren PC thay CUNG mo
+         * hinh tra 13/13 bong trong mot lan goi. Dat `maxNumTokens = 4096` tren
+         * may thi tran 10 bong bien mat that.
+         *
+         * NHUNG nang tran roi dua ca trang vao mot lan goi **lai cham hon**:
+         *
+         * ```
+         *   ngu canh mac dinh, 2 dot : 122,4 s   (prefill dot 1: 17,3 s)
+         *   4096,              1 lan : 142,2 s   (prefill      : 22,2 s)
+         *   4096,              2 dot : 114,8 s   (prefill dot 1: 12,9 s)
+         * ```
+         *
+         * Ly do: F70 da cho dot 2 dung lai phien cua dot 1, nen no **da nhin
+         * thay** ban dich cua dot truoc. Cai loi cua "mot lan goi" phan lon da
+         * thu duoc tu truoc roi, con phan con lai khong bu noi chi phi ngu canh
+         * dai hon. Doi chieu ban dich hai cach: gan nhu khong khac.
+         *
+         * Nen giu `MAX_PER_CALL = 10` va giu ca `maxNumTokens` o day — no khong
+         * lam cham, va no bo mot cai tran an: phien dung chung qua nhieu dot se
+         * day dan len, tran ngam thi mo hinh mat ngu canh ma khong ai bao.
+         */
+        const val CONTEXT_TOKENS = 4096
+
         /** Tran do dai bai lam. Xem cho goi `createConversation`. */
         const val MAX_OUTPUT_TOKENS = 2048
 
@@ -95,6 +125,7 @@ class LiteRtLmTranslator(
                     modelPath = modelPath,
                     backend = backend,
                     cacheDir = cacheDir,
+                    maxNumTokens = CONTEXT_TOKENS,
                 )
             )
             e.initialize()
