@@ -3213,6 +3213,122 @@ prompt la phan co dinh lap lai — khong phep do nao de thay hon, va cung khong
 phep do nao de bo qua hon.
 ---
 
+## F71 — Do PC lam may dich: suy doan cua toi sai 4 lan, va cai duoc nhat la mot bien moi truong
+
+Nguoi dung chot "mien phi vinh vien, khong phai dung mot ti la het token", nen
+duong Gemini bi loai va duong con lai la **dung chinh ROG Ally lam may dich**.
+Do truoc khi xay (rule 3). Tat ca deu tren cung mot trang 13 bong, cung chu
+OCR that, cung SYSTEM prompt (doc thang tu file Kotlin dang chay, khong go lai).
+
+### Bang ket qua
+
+| | M52 (LiteRT-LM, int4) | ROG Ally CPU | ROG Ally iGPU |
+|---|---|---|---|
+| Doc prompt | **17,3 s** (dot 1) | 0,11 s | 0,49 s |
+| Sinh chu | ~20 tok/s | 22,3 tok/s | **41,4 tok/s** |
+| Ca 13 bong | **98 s** (2 dot) | 71,5 s | **38,5 s** |
+| So bong | 13/13 (2 dot) | 13/13 (1 lan) | 13/13 (1 lan) |
+
+### Bon cho toi doan sai
+
+**1. "PC nhanh hon 5-10 lan."** Sai. Cung mo hinh, chay CPU: chi **1,37 lan**.
+
+**2. "Cham la vi mo hinh tren PC la fp16."** Sai. `ollama show` cho thay
+`gemma4:e2b` da la **Q4_K_M** san (5,1B tham so; nang 7,2 GB vi co them phan
+nhin va nghe). Gia thuyet chet ngay o mot lenh.
+
+**3. "Sinh chu se nhanh hon nhieu tren PC."** Sai o canh CPU: 22,3 so voi ~20
+tok/s, gan nhu bang nhau — du Z1 Extreme co 16 luong con dien thoai co y chi
+dung 2 luong (AD-25). Sinh chu nghen o bang thong bo nho, khong o so nhan.
+
+**4. "Chat luong tot hon la nho phan cung."** Sai. Cung MOT mo hinh ma PC dich
+tot hon o vai cho ro rang — vi PC gui **ca 13 bong trong MOT lan goi**, con
+dien thoai phai chia [7, 6]. Nhieu ngu canh hon thi chon xung ho dung hon, dung
+nhu AD-3 noi.
+
+### Cai duoc nhat: mot bien moi truong
+
+Log cua ollama noi thang, chi can doc:
+
+```
+dropping integrated GPU; to enable, set OLLAMA_IGPU_ENABLE=1
+  library=Vulkan  name="AMD Radeon Graphics"
+```
+
+Ollama **da nhan ra** Radeon 780M va da co san duong Vulkan, nhung mac dinh bo
+qua GPU tich hop. Dat `OLLAMA_IGPU_ENABLE=1`:
+
+- sinh chu **22,3 -> 41,4 tok/s** (1,83 lan)
+- ca trang **71,5 -> 38,5 s**
+- va quan trong khong kem: bo nho GPU nhin thay **17,4 GiB** thay vi 2,6 GiB
+  cua CPU, nen mo hinh lon hon han moi nam vua
+
+Con mot duong nua chua thu: ROCm bi bo vi `gfx1103` khong co rocblas, log goi y
+`HSA_OVERRIDE_GFX_VERSION`. Vulkan da chay nen chua can den.
+
+### Chat luong: cung mo hinh, khac cach goi
+
+| Nguyen ban | May (2 dot) | PC (1 lan) |
+|---|---|---|
+| 胸…ッ | "Ngực...**ッ**" sot chu Nhat | "Ngực…!" ✓ |
+| 美月! | "**Mitsu**!" cut ten | "Mitsuki!" ✓ |
+| …言って**なかった**? | "...**chứ?**" mat phu dinh | "**không** nói...**sao?**" ✓ |
+| 杏ってば…**じゃん** | "An thì đã dính vào bố đó rồi" ✓ | "**Con** đã dính...**của cậu**" ✗ sai ngoi |
+
+PC hon ro o 4-5 cho, thua o 2. Khong phai mot troi mot vuc.
+
+### Mo hinh lon hon: nhanh nhat, nhung TE nhat
+
+`qwen3:8b` (5,2 GB, q4) tren cung iGPU, cung prompt:
+
+| | M52 | PC + gemma4:e2b | PC + qwen3:8b |
+|---|---|---|---|
+| Ca 13 bong | 98 s | 38,5 s | **21,5 s** |
+| Chu dau tien | 17,3 s | 0,49 s | **0,10 s** |
+| JSON | hop le | hop le | **HONG** |
+
+Nhanh gap **4,6 lan** dien thoai. Nhung doc dau ra thi:
+
+- 「胸…ッ」 -> "Chậc…" — sai han (胸 la nguc, khong phai tieng tac luoi)
+- 「娘さんひど〜い」 -> "Cô ấy thật là tệ." — 娘さん la "con gai cua ong", khong phai "co ay"
+- 「…バン氏と会う」 -> "bạn trai của**杏**" — **de nguyen chu Han trong cau tieng Viet**
+- 「杏ってば」 -> "**Thằng**杏" — vua sot chu Nhat, vua sai gioi tinh (杏 la con gai)
+- **Bong so 8 bi hong**: mo hinh sinh `{"id":8,"ja` roi dut, xuong dong lam lai,
+  va chep de ban dich cua bong 7 vao. Day la ly do JSON khong doc duoc.
+
+Gemma 4 E2B — **chinh mo hinh app dang dung** — tra 13/13, JSON hop le, khong
+sot chu Nhat. Mo hinh to gap 1,6 lan lai dich te hon o dung cai viec nay.
+
+Day la **lan thu ba** trong du an gia dinh "model to hon thi tot hon" bi bac
+bang phep do.
+
+### Ket luan ve D
+
+Cai co gia nhat cua D — "PC chay duoc mo hinh lon hon nen dich chuan hon" —
+**khong dung**. Phan con lai la: cung mo hinh, nhanh hon 2,5 lan (98 s ->
+38,5 s), chat luong hon mot chut vi khong phai chia dot.
+
+Doi lai: PC phai bat, dien thoai phai cung Wi-Fi. Nguoi dung noi thang la bat
+tien, va voi 2,5 lan thi **khong dang xay**.
+
+### Nhung phep do nay lo ra mot duong khac, khong can PC
+
+Gemma 4 E2B tra **13/13 bong trong MOT lan goi** tren PC. Tren may thi F58 do
+duoc no dung o dung 10 bong, hai lan lien tiep. Cung mo hinh, khac ket qua =>
+cai tran 10 bong **khong phai gioi han cua mo hinh**, ma la cua cach app goi no.
+
+Va F70 vua cat prompt di 41%. Nen dang thu nang `MAX_PER_CALL` tren may:
+dich duoc ca trang trong mot lan thi vua nhanh hon (bo mot lan prefill) vua
+dich dung hon (du ngu canh cho xung ho) — dung tren dien thoai, khong can PC,
+khong can Wi-Fi.
+
+### Quy tac rut ra
+
+**Doc log cua cong cu truoc khi doan ve hieu nang cua no.** Cau tra loi cho
+"vi sao cham" nam nguyen van trong dong log thu ba, kem ca cach sua. Toi da
+dung ba gia thuyet va do ba lan truoc khi mo file log ra doc.
+---
+
 ## Còn nợ
 
 | # | Việc | Chặn gì | Trạng thái |
