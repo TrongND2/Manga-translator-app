@@ -37,19 +37,34 @@ class GeminiLookup(private val ctx: Context, private val apiKey: String) {
         /**
          * Ten model MAC DINH.
          *
-         * ⚠️ Google khai tu ten model kha thuong xuyen — gap ngay o lan goi thu
-         * dau tien trong doi:
+         * ⚠️ Hai ly do chon dung ban **-lite**, va ca hai deu do duoc:
          *
-         * ```
-         * 404  This model models/gemini-2.0-flash is no longer available.
-         *      Please update your code to use models/gemini-3.6-flash
-         * ```
+         * **1. Han muc.** Goi mien phi cua Google tinh theo TUNG model, va
+         * Google **da bo han bang so khoi tai lieu** — chi con xem duoc o
+         * AI Studio cua tung tai khoan. Nguon do duoc ngoai: dong `flash`
+         * thuong ~20 luot/ngay, dong `flash-lite` ~500. Nguoi dung bao "dung
+         * tren app thi bao het luot" trong khi chat Gemini van thoai mai —
+         * dung la vi app an vao han muc API, tach hoan toan khoi han muc cua
+         * san pham chat.
          *
-         * May chu **noi thang ten thay the** ngay trong cau loi. Nen thay vi bat
-         * nguoi dung doi app moi lan Google doi ten, `meaningOf` doc ten do ra,
-         * goi lai ngay va nho lai cho nhung lan sau.
+         * **2. May chu do rong.** Do that voi khoa cua nguoi dung, 3 cum tu:
+         * ```
+         *   gemini-3.6-flash        2/3 lan tra HTTP 503  |  5,2 s
+         *   gemini-flash-lite-latest 3/3 lan OK           |  0,9 s
+         * ```
+         * 503 chinh la man hinh "high demand" nguoi dung gap.
+         *
+         * Chat luong cho viec TRA MOT CUM TU thi khong thua: ca hai ban lite
+         * deu dich dung 「今日は杏彼氏と会うって言ってなかった?」 (giu duoc
+         * phu dinh — thu ma Gemma tren may lam hong), va deu KHONG bia ten
+         * "Rurimaru" vao 「溢れちゃってりゅ…」 nhu loi F65.
+         *
+         * Dung ban `-latest` chu khong ghim so: F63 da dinh mot lan model bi
+         * khai tu ngay lan goi dau tien. Bi danh so thi som muon cung chet;
+         * `-latest` tu di theo ban moi. Duong tu chua 404 ben duoi van giu lam
+         * luoi do phong.
          */
-        private const val DEFAULT_MODEL = "gemini-3.6-flash"
+        private const val DEFAULT_MODEL = "gemini-flash-lite-latest"
 
         /** Bat `models/<ten>` trong cau loi de lay ten thay the. */
         private val MODEL_RE = Regex("models/([A-Za-z0-9.-]+)")

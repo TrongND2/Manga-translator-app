@@ -3393,6 +3393,75 @@ trong suot may thang, va mac dinh cua no la cai da sinh ra F58 — mot ket luan
 sai ve nang luc cua mo hinh, song duoc ba tuan.
 ---
 
+## F73 — "Chat Gemini thoai mai ma app bao het luot": hai san pham, hai han muc, va app chon nham model
+
+Nguoi dung: *"tôi dùng gemini thoải mái, nhưng dùng trên app thì báo hết lượt
+dùng free, hoặc đang high demand"*.
+
+### Khong phai app sai — la hai he thong tach roi
+
+| | Gemini de chat | Gemini API trong app |
+|---|---|---|
+| Vao bang | gemini.google.com / app Gemini | khoa API tu AI Studio |
+| Han muc | theo tai khoan / goi tra tien | theo **project**, tach hoan toan |
+
+Tai lieu noi thang: **tra tien cho AI Pro khong cho han muc API, va tieu tien
+API khong nang han muc trong app chat.** Khong co duong hop le nao de app dung
+tai khoan chat cua nguoi dung — Google khong mo API cho san pham tieu dung.
+
+### Nhung co mot cho SUA DUOC, va app dang chon nham
+
+Han muc mien phi tinh **theo tung model**. Doc `shared_prefs/cloud.xml` tren
+may: khong co `gemini_model`, tuc app dang chay `DEFAULT_MODEL` =
+`gemini-3.6-flash` — dung dong bi bao la ~20 luot/ngay, trong khi dong
+`flash-lite` duoc ~500.
+
+Do that voi khoa cua nguoi dung, 3 cum tu moi model:
+
+```
+gemini-3.6-flash          2/3 lan HTTP 503   5,2 s
+gemini-3.5-flash-lite     3/3 OK             1,0 s
+gemini-3.1-flash-lite     3/3 OK             2,0 s
+gemini-flash-lite-latest  3/3 OK             0,9 s
+```
+
+**503 chinh la man hinh "high demand"** nguoi dung gap. Ban `-lite` khong chi
+nhieu han muc hon ma con **nhanh gap 5 lan** va **khong bi tu choi lan nao**.
+
+### Chat luong: ban lite KHONG thua cho viec tra mot cum tu
+
+| Nguyen ban | Ket qua |
+|---|---|
+| 今日は杏彼氏と会うって言ってなかった? | "Không phải em đã bảo hôm nay có hẹn gặp bạn trai của An à?" — **giu duoc phu dinh**, thu ma Gemma tren may lam hong |
+| 溢れちゃってりゅ… | "Nó đang trào ra mất rồi..." — **khong bia ten "Rurimaru"** nhu loi F65 |
+| い…いらっしゃい | "Chào... Chào quý khách" — giu ca cai noi lap |
+| 取って貰うからね? | ca hai ban deu truot — cum nay can ngu canh ca trang |
+
+### Chot
+
+`DEFAULT_MODEL` doi tu `gemini-3.6-flash` sang **`gemini-flash-lite-latest`**.
+
+Dung ban `-latest` chu khong ghim so co ly do rieng: F63 da dinh mot lan model
+bi khai tu ngay lan goi dau tien trong doi. Ten co so thi som muon cung chet;
+`-latest` tu di theo ban moi. Duong tu chua 404 cua F63 van giu lam luoi do
+phong chu khong con la co che chinh.
+
+### Mot canh bao tim duoc nhan tien
+
+Tai lieu chinh thuc: *"On September 2026: the Gemini API will reject requests
+from **standard keys**."* Khoa tao truoc 28/5/2026 la loai `standard`, khoa tao
+sau la `auth`. Nguoi dung xac nhan khoa cua ho moi tao => khong dinh. Nhung day
+la thu se lam app hong cau cho bat ky ai dung khoa cu, va trieu chung se la loi
+4xx chu khong phai "het han muc".
+
+### Quy tac rut ra
+
+**Khi nguoi dung noi "cai nay cho nay chay duoc ma cho kia khong", dung vach
+dung ranh gioi truoc khi sua gi.** O day ranh gioi la giua hai SAN PHAM cua
+cung mot hang, va neu khong thay ranh do thi se di sua nham cho — hoac te hon,
+di tim cach lach de dung tai khoan chat.
+---
+
 ## Còn nợ
 
 | # | Việc | Chặn gì | Trạng thái |
