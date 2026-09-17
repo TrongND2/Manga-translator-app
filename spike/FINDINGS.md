@@ -3462,6 +3462,84 @@ cung mot hang, va neu khong thay ranh do thi se di sua nham cho — hoac te hon,
 di tim cach lach de dung tai khoan chat.
 ---
 
+## F74 — Ra soat bao mat: be mat tan cong gan bang khong, nhung khoa API nam nguyen van tren dia
+
+Nguoi dung hoi app co so bi hacker tan cong khong. Doc manifest va hoi `dumpsys`
+tren may that, khong doan.
+
+### Be mat tan cong tu xa: khong co
+
+- App **khong mo cong nao**, khong phai server. No chi goi ra, khong nhan vao.
+- **Chi MOT thanh phan `exported=true`** la `MainActivity` (launcher). Tat ca
+  con lai `exported=false` — da chung minh: `am start` vao `GrabTextActivity`
+  bi he thong tu choi bang `SecurityException`.
+- **Khong `<receiver>`, khong `<provider>`** — hai cong ngam pho bien nhat de
+  app khac choc vao, app nay khong co cai nao.
+- Quyen xin: hien thi de, foreground service, thong bao, internet. **Khong**
+  camera, micro, vi tri, danh ba, SMS, bo nho ngoai.
+- Khong SDK ben thu ba, khong analytics.
+- Goi mo hinh 2,6 GB doi chieu sha256 khi tai.
+- Khong bat cleartext -> moi ket noi buoc phai HTTPS.
+
+### Ba cho ho, do bang `dumpsys`
+
+```
+flags=[ DEBUGGABLE HAS_CODE ALLOW_CLEAR_USER_DATA ALLOW_BACKUP ]
+```
+
+1. **`DEBUGGABLE`** — APK phat hanh la ban `assembleDebug`. Ai cam duoc may (co
+   USB debugging bat, may tinh da authorize) doc duoc toan bo du lieu rieng
+   bang mot lenh. **Toi da dung dung duong do suot ca phien.** Doi lai la khoa
+   ky: `assembleRelease` ra file chua ky, con doi khoa ky thi may bat go app =
+   mat 2,6 GB mo hinh (CLAUDE.md 5.6).
+2. **`ALLOW_BACKUP`** — mac dinh bat, khoa API va tu dien co the ra ban sao luu.
+3. **Khoa Gemini nam nguyen van** trong `shared_prefs/cloud.xml`.
+
+### Da chua hai cho sau
+
+**`allowBackup="false"`** — mot dong. Do lai: `ALLOW_BACKUP` bien mat khoi
+flags.
+
+**Ma hoa khoa bang Keystore cua may.** AES/GCM, khoa AES sinh trong
+`AndroidKeyStore` nen **khong lay ra khoi may duoc**. Luu dang
+`base64(iv):base64(ban ma)`.
+
+Kem duong **tu doi cho khoa cu**: lan dau `key()` chay, no doc ban nguyen van,
+ghi lai dang ma hoa, roi **xoa ban nguyen van**. Do tren may:
+
+```
+truoc: <string name="gemini_key">AQ.Ab8RN6...
+sau  : con luu nguyen van: KHONG
+       co ban ma hoa    : CO   (kLIap3D4qeMgqlEj:mY7...  109 ky tu)
+```
+
+Va van goi that duoc: 「い…いらっしゃい」 -> "Chào... chào quý khách".
+
+Neu khoa Keystore mat (go app, khoi phuc may, doi khoa man hinh) thi giai ma
+hong — khi do **xoa muc di** de nguoi dung nhap lai, chu khong de app treo o
+trang thai "co khoa ma khong dung duoc".
+
+### Gioi han phai noi ro, khong duoc giau
+
+Chung nao app con `DEBUGGABLE`, **ma hoa chi chan nguoi CHEP FILE, khong chan
+nguoi GAN DEBUGGER** — vi luc do chinh app se giai ma ho. Nguoi dung chon:
+lam hai cho re, con `DEBUGGABLE` thi ho tu tat USB debugging sau khi xong. Do
+la lua chon dung: tat USB debugging bit dung duong vao chinh.
+
+### Moi lo lon hon hacker
+
+App co quyen **doc man hinh** va **ve de len moi app**. Ban than no dung dung
+muc dich. Nhung mot APK *trong giong* ma khong phai do nguoi dung build thi co
+the doc moi thu tren man hinh — ke ca app ngan hang. Quy tac: **chi cai APK tu
+release cua chinh minh**.
+
+### Quy tac rut ra
+
+**Hoi `dumpsys` truoc khi tra loi cau hoi ve bao mat.** Ba cai co trong
+`flags=[...]` noi nhieu hon ca trang suy luan, va hai trong ba cai do sua duoc
+trong mot buoi.
+---
+
 ## Còn nợ
 
 | # | Việc | Chặn gì | Trạng thái |

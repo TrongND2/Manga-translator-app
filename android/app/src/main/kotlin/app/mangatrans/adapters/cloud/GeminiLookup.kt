@@ -72,11 +72,92 @@ class GeminiLookup(private val ctx: Context, private val apiKey: String) {
         /** Cho lay khoa mien phi — hien trong man hinh Cai dat. */
         const val KEY_URL = "https://aistudio.google.com/apikey"
 
-        fun key(ctx: Context): String? =
-            prefs(ctx).getString(KEY, null)
+        /**
+         * Khoa da ma hoa. O cu [KEY] chi con de **doc mot lan roi xoa**.
+         */
+        private const val KEY_ENC = "gemini_key_enc"
+
+        /** Ten khoa AES nam trong Keystore cua may. */
+        private const val ALIAS = "mangatrans_gemini_v1"
+        private const val KEYSTORE = "AndroidKeyStore"
+
+        /**
+         * Doc khoa API.
+         *
+         * ⚠️ Truoc day khoa nam **nguyen van** trong `shared_prefs/cloud.xml`.
+         * Ai cam duoc may (co USB debugging bat) la doc duoc bang mot lenh:
+         * `run-as app.mangatrans cat shared_prefs/cloud.xml`. Gio no duoc ma
+         * hoa bang mot khoa AES nam trong Keystore cua may — khoa do **khong
+         * lay ra khoi may duoc**, nen chep file ra ngoai cung khong doc noi.
+         *
+         * Gioi han phai noi ro: chung nao app con `DEBUGGABLE`, nguoi gan
+         * duoc debugger vao tien trinh van doc duoc — vi luc do chinh app giai
+         * ma ho. Lop nay chan nguoi CHEP FILE, khong chan nguoi GAN DEBUGGER.
+         */
+        fun key(ctx: Context): String? {
+            val p = prefs(ctx)
+            // Doi cho khoa cu sang dang ma hoa, roi xoa ban nguyen van di.
+            p.getString(KEY, null)?.takeIf { it.isNotBlank() }?.let { old ->
+                setKey(ctx, old)
+                return old
+            }
+            val blob = p.getString(KEY_ENC, null) ?: return null
+            return runCatching { decrypt(blob) }.getOrElse {
+                // Khoa Keystore mat (go app, khoi phuc may, doi khoa man hinh).
+                // Khong cuu duoc — don di de nguoi dung nhap lai.
+                p.edit().remove(KEY_ENC).apply()
+                null
+            }
+        }
 
         fun setKey(ctx: Context, value: String) {
-            prefs(ctx).edit().putString(KEY, value.trim()).apply()
+            val v = value.trim()
+            val e = prefs(ctx).edit().remove(KEY)   // ban nguyen van khong bao gio quay lai
+            if (v.isEmpty()) e.remove(KEY_ENC) else e.putString(KEY_ENC, encrypt(v))
+            e.apply()
+        }
+
+        private fun secret(): javax.crypto.SecretKey {
+            val ks = java.security.KeyStore.getInstance(KEYSTORE).apply { load(null) }
+            (ks.getEntry(ALIAS, null) as? java.security.KeyStore.SecretKeyEntry)
+                ?.let { return it.secretKey }
+            val gen = javax.crypto.KeyGenerator.getInstance(
+                android.security.keystore.KeyProperties.KEY_ALGORITHM_AES, KEYSTORE,
+            )
+            gen.init(
+                android.security.keystore.KeyGenParameterSpec.Builder(
+                    ALIAS,
+                    android.security.keystore.KeyProperties.PURPOSE_ENCRYPT or
+                        android.security.keystore.KeyProperties.PURPOSE_DECRYPT,
+                )
+                    .setBlockModes(android.security.keystore.KeyProperties.BLOCK_MODE_GCM)
+                    .setEncryptionPaddings(
+                        android.security.keystore.KeyProperties.ENCRYPTION_PADDING_NONE
+                    )
+                    .build()
+            )
+            return gen.generateKey()
+        }
+
+        /** Tra ve `base64(iv):base64(ban ma)`. */
+        private fun encrypt(plain: String): String {
+            val c = javax.crypto.Cipher.getInstance("AES/GCM/NoPadding")
+            c.init(javax.crypto.Cipher.ENCRYPT_MODE, secret())
+            val ct = c.doFinal(plain.toByteArray(Charsets.UTF_8))
+            val b64 = android.util.Base64.NO_WRAP
+            return android.util.Base64.encodeToString(c.iv, b64) + ":" +
+                android.util.Base64.encodeToString(ct, b64)
+        }
+
+        private fun decrypt(blob: String): String {
+            val (ivB64, ctB64) = blob.split(":", limit = 2)
+            val b64 = android.util.Base64.NO_WRAP
+            val c = javax.crypto.Cipher.getInstance("AES/GCM/NoPadding")
+            c.init(
+                javax.crypto.Cipher.DECRYPT_MODE, secret(),
+                javax.crypto.spec.GCMParameterSpec(128, android.util.Base64.decode(ivB64, b64)),
+            )
+            return String(c.doFinal(android.util.Base64.decode(ctB64, b64)), Charsets.UTF_8)
         }
 
         private fun prefs(ctx: Context) =

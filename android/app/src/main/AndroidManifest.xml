@@ -29,7 +29,16 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
+    <!--
+      Khong cho he thong sao luu du lieu cua app.
+
+      Mac dinh Android la CO sao luu, va o day thu duoc sao luu la khoa API
+      Gemini cung tu dien rieng — chung se di ra ban sao luu dam may hoac ra
+      file `adb backup`. Khong co ly do gi de chung roi khoi may: goi mo hinh
+      2,6 GB tai lai duoc, tu dien thi nho va nguoi dung tu go.
+    -->
     <application
+        android:allowBackup="false"
         android:label="Manga Translator"
         android:icon="@android:drawable/ic_menu_view"
         android:theme="@style/Theme.AppCompat.DayNight">
