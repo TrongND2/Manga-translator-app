@@ -31,6 +31,9 @@ object Composition {
 
     const val TMP = "/data/local/tmp"
 
+    /** Bo tu dien mau di kem APK — xem `seedGlossaryIfEmpty`. */
+    const val SEED_ASSET = "glossary_seed.json"
+
     /**
      * ONNX Runtime ban Android KHONG co `ConvInteger` — op ma ca ba ban luong tu
      * cua encoder (`_int8` / `_quantized` / `_uint8`) deu dung o lop patch
@@ -191,11 +194,31 @@ object Composition {
      */
     fun seedGlossaryIfEmpty(ctx: Context, say: (String) -> Unit) {
         val target = glossaryFile(ctx)
-        val seed = File(TMP, "glossary_seed.json")
-        if (seed.exists() && !target.exists()) {
-            target.parentFile?.mkdirs()
-            seed.copyTo(target, overwrite = true)
-            say("Đã nạp glossary mẫu từ ${seed.name}")
+        if (target.exists()) return
+        target.parentFile?.mkdirs()
+
+        // Duong cua nguoi phat trien: day file de chen bo rieng khi thu nghiem.
+        val fromAdb = File(TMP, "glossary_seed.json")
+        if (fromAdb.exists()) {
+            fromAdb.copyTo(target, overwrite = true)
+            say("Đã nạp glossary mẫu từ ${fromAdb.name}")
+            return
+        }
+
+        // ⚠️ Duong cua NGUOI DUNG THAT — bo tu mau dong san trong APK.
+        //
+        // Truoc day chi co duong `adb` o tren, tuc la nguoi dung binh thuong
+        // **luon bat dau voi tu dien rong**. Ma do tren may thi tu dien la thu
+        // chua duoc nhieu loi dich nhat: rieng viec them `ちんこ` da sua 4 cho
+        // dich thanh "cái chuông" tren mot trang (F82).
+        runCatching {
+            ctx.assets.open(SEED_ASSET).use { input ->
+                target.outputStream().use { input.copyTo(it) }
+            }
+        }.onSuccess {
+            say("Đã nạp bộ từ điển mẫu đi kèm app")
+        }.onFailure {
+            say("Không nạp được từ điển mẫu: ${it.javaClass.simpleName}")
         }
     }
 }

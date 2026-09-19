@@ -50,10 +50,37 @@ class GlossaryActivity : AppCompatActivity() {
         fun intent(ctx: Context) = Intent(ctx, GlossaryActivity::class.java)
 
         private const val SERIES = "default"
+
+        /**
+         * Loai file cho trinh chon khi NHAP.
+         *
+         * Co ca `text/plain` va kieu bat ky, vi nhieu trinh quan ly file tren
+         * Android gan sai kieu cho `.json` — chi loc `application/json` thi
+         * file cua chinh minh vua xuat ra lai hien mo va khong bam duoc.
+         *
+         * ⚠️ Dung viet ky tu dai dien vao chu thich nay: chuoi do dong luon
+         * khoi comment va lam hong ca file (da mac mot lan).
+         */
+        private val IMPORT_TYPES = arrayOf("application/json", "text/plain", "*/*")
     }
 
     private lateinit var store: GlossaryStore
     private lateinit var root: LinearLayout
+
+    /**
+     * Nhap / xuat qua Storage Access Framework — **khong xin quyen bo nho nao**.
+     *
+     * Nguoi dung tu chon file trong trinh chon cua he thong, va app chi duoc
+     * doc/ghi dung file do. Duong nay chay tu Android 10 tro len ma khong can
+     * `READ_EXTERNAL_STORAGE`, hop voi muc tieu giu app it quyen nhat co the.
+     */
+    private val pickImport = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
+    ) { uri -> uri?.let { doImport(it) } }
+
+    private val pickExport = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/json")
+    ) { uri -> uri?.let { doExport(it) } }
 
     private val kindLabel = mapOf(
         GlossaryKind.ProperNoun to "Tên riêng",
@@ -110,6 +137,19 @@ class GlossaryActivity : AppCompatActivity() {
             this,
             "Không gõ được chữ Nhật? Giữ icon nổi → chạm ⌖ → khoanh lấy chữ ngay " +
                 "trên trang truyện.",
+        ))
+
+        root.addView(Ui.buttonRow(
+            this,
+            Ui.smallButton(this, "⬇  Nhập từ file", Ui.C.info) { pickImport.launch(IMPORT_TYPES) },
+            Ui.smallButton(this, "⬆  Xuất ra file", Ui.C.info) {
+                pickExport.launch("tudien-mangatrans-${today()}.json")
+            },
+        ))
+        root.addView(Ui.hint(
+            this,
+            "Nhập thì GỘP vào những mục đang có, trùng chữ Nhật thì mục mới thắng — " +
+                "không xoá gì của bạn. Xuất để sao lưu hoặc mang sang máy khác.",
         ))
 
         // --- Muc cho xac nhan (FR-034) ---
@@ -442,7 +482,90 @@ class GlossaryActivity : AppCompatActivity() {
             .show()
     }
 
+    // ---------- nhap / xuat ----------
+
+    /**
+     * Nhap: **GOP**, khong thay the.
+     *
+     * Ly do khong cho thay the: nguoi dung co the da tu go hang chuc muc rieng
+     * cho bo truyen dang doc. Mot cu nhap nham ma xoa sach so la mat trang cong
+     * ma khong co duong lui — con gop thi te nhat cung chi la thua vai muc, va
+     * go tung muc thi lam duoc ngay tren man hinh nay.
+     *
+     * Trung `surface` thi muc MOI thang, vi nguoi dung vua co y dua no vao.
+     *
+     * AD-7: moi thay doi di qua `GlossaryStore`, khong ghi thang xuong file.
+     */
+    private fun doImport(uri: android.net.Uri) = lifecycleScope.launch {
+        val text = runCatching {
+            contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+        }.getOrNull()
+        if (text.isNullOrBlank()) { toast("Không đọc được file đó."); return@launch }
+
+        val parsed = runCatching { parseEntries(text) }.getOrNull()
+        if (parsed == null) { toast("File không đúng định dạng từ điển."); return@launch }
+        if (parsed.isEmpty()) { toast("File không có mục nào."); return@launch }
+
+        val before = store.confirmed(SERIES).map { it.surface }.toSet()
+        parsed.forEach { store.upsertByUser(it) }
+        val added = parsed.count { it.surface !in before }
+        toast("Đã nhập ${parsed.size} mục — $added mới, ${parsed.size - added} ghi đè.")
+        refresh()
+    }
+
+    private fun doExport(uri: android.net.Uri) = lifecycleScope.launch {
+        // Xuat CA muc da dung lan muc cho duyet — sao luu thi phai day du.
+        val all = store.confirmed(SERIES) + store.proposed(SERIES)
+        val json = org.json.JSONArray()
+        all.forEach {
+            json.put(org.json.JSONObject().apply {
+                put("seriesKey", it.seriesKey); put("surface", it.surface)
+                put("meaning", it.meaning); put("kind", it.kind.name); put("status", it.status.name)
+            })
+        }
+        val ok = runCatching {
+            contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(json.toString(1)) }
+        }.isSuccess
+        toast(if (ok) "Đã xuất ${all.size} mục." else "Không ghi được file.")
+    }
+
+    /**
+     * Doc mot mang JSON thanh danh sach muc.
+     *
+     * ⚠️ Bo qua muc hong thay vi vut ca file: mot muc thieu truong khong phai ly
+     * do de nem di 80 muc con lai. Mot muc `surface` rong thi khong bao gio khop
+     * chu tren trang nen cung bo.
+     */
+    private fun parseEntries(text: String): List<GlossaryEntry> {
+        val arr = org.json.JSONArray(text)
+        return buildList {
+            for (i in 0 until arr.length()) {
+                val o = arr.optJSONObject(i) ?: continue
+                val surface = o.optString("surface").trim()
+                val meaning = o.optString("meaning").trim()
+                if (surface.isEmpty() || meaning.isEmpty()) continue
+                add(GlossaryEntry(
+                    seriesKey = SERIES,
+                    surface = surface,
+                    meaning = meaning,
+                    kind = runCatching { GlossaryKind.valueOf(o.optString("kind")) }
+                        .getOrDefault(GlossaryKind.Idiom),
+                    status = GlossaryStatus.Confirmed,
+                ))
+            }
+        }
+    }
+
     // ---------- vun vat ----------
+
+    private fun today(): String {
+        val c = java.util.Calendar.getInstance()
+        return "%04d%02d%02d".format(
+            c.get(java.util.Calendar.YEAR),
+            c.get(java.util.Calendar.MONTH) + 1,
+            c.get(java.util.Calendar.DAY_OF_MONTH),
+        )
+    }
 
     private fun toast(s: String) = Toast.makeText(this, s, Toast.LENGTH_SHORT).show()
 }

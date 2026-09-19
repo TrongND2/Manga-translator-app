@@ -78,6 +78,23 @@ Giữ icon → chạm `⌖` → kéo một khung quanh chữ cần lấy. App đ
 
 Thêm một mục xong, app **tự quét lại những trang đã dịch và chỉ quên đúng những trang có chứa cụm đó** — các trang khác giữ nguyên, và nó báo cho bạn biết bao nhiêu trang sẽ được dịch lại. Không phải sửa từng trang một, cũng không phải xoá sạch.
 
+### Cài xong là đã có sẵn 413 mục
+
+Không phải bắt đầu từ con số không. App đi kèm một bộ từ điển soạn sẵn cho manga: giải phẫu, hành vi, vai và quan hệ, trạng thái, bối cảnh trường học, cùng những câu chào cố định. Nó được nạp tự động ở lần chạy đầu tiên.
+
+Bộ này chỉ chứa **cụm ngắn, nghĩa rõ một chiều**. Những từ đa nghĩa như 大丈夫, やばい, 生 bị bỏ ra có chủ ý: ép cứng một nghĩa cho chúng sẽ làm hỏng những trang bình thường mà không ai nhận ra.
+
+Từ điển to **không làm app chậm đi**: mỗi lần dịch, app chỉ đưa vào những mục thật sự xuất hiện trên trang đó — đo trên 15 trang thật thì trung bình chỉ 3 mục mỗi trang.
+
+### Nhập / xuất để sao lưu và mang sang máy khác
+
+Trong màn hình Từ điển riêng có **⬇ Nhập từ file** và **⬆ Xuất ra file**.
+
+- **Nhập** thì **gộp** vào những mục đang có; trùng chữ Nhật thì mục mới thắng. Không xoá gì của bạn.
+- **Xuất** ra một file `.json` đặt ở đâu tuỳ bạn.
+
+Cả hai đi qua trình chọn file của hệ thống nên **app không cần quyền bộ nhớ nào**.
+
 ## Hai nút dịch, ở cả ba chỗ
 
 Ô sửa bóng thoại, màn khoanh lấy chữ, và ô thêm mục ở Từ điển riêng đều có hai nút:
