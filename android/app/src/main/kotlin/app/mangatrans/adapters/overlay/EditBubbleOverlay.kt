@@ -122,15 +122,36 @@ class EditBubbleOverlay(
                 if (s.isEmpty()) { st.text = "Bản dịch đang để trống." }
                 else { onSavePage(s); hide() }
             })
+            // ⚠️ Nguyen ban o day la NGUYEN VAN ca bong thoai, nen phan lon la
+            // ca mot cau. Dua ca cau vao glossary vua vo dung vua dat: no chi
+            // khop dung cau do tren dung trang do, ma van keo theo
+            // `forgetContaining` — tuc xoa cache cua chinh trang vua dich xong.
+            //
+            // Do tren may that (F86): trang dang hit cache trong 2,6 giay; sau
+            // khi luu mot cau vao glossary thi lan sau phai dich lai tu dau.
+            // Nguoi dung tao 4 muc ca cau nhu vay chi trong mot phien.
+            val wholeSentence = app.mangatrans.ports.looksLikeWholeSentence(ja)
             addView(Ui.button(ctx, "Lưu vào từ điển riêng", Ui.C.glossary, Ui.Weight.Tonal) {
                 val s = field.text.toString().trim()
-                if (s.isEmpty()) { st.text = "Bản dịch đang để trống." }
-                else { onSaveGlossary(s); hide() }
+                when {
+                    s.isEmpty() -> st.text = "Bản dịch đang để trống."
+                    // Chan chu khong chi canh bao: dong chu canh bao cu da nam
+                    // ngay duoi nut va van khong ngan duoc 4 muc rac.
+                    wholeSentence -> st.text =
+                        "Nguyên bản ở trên là cả một câu nên chỉ khớp đúng trang này, " +
+                            "mà lưu vào từ điển sẽ xoá cache và bắt dịch lại cả trang. " +
+                            "Dùng \"Lưu cho riêng trang này\" — nhanh hơn và giữ đúng chỗ sửa."
+                    else -> { onSaveGlossary(s); hide() }
+                }
             })
             addView(Ui.hint(
                 ctx,
-                "\"Từ điển riêng\" áp cho MỌI trang về sau — chỉ nên dùng khi cụm " +
-                    "chữ Nhật ở trên là cụm lặp lại (tên nhân vật, thành ngữ, xưng hô).",
+                if (wholeSentence)
+                    "Nguyên bản ở trên là cả một câu — hãy dùng \"Lưu cho riêng trang này\". " +
+                        "Từ điển riêng chỉ hợp với cụm ngắn lặp lại nhiều trang."
+                else
+                    "\"Từ điển riêng\" áp cho MỌI trang về sau — chỉ nên dùng khi cụm " +
+                        "chữ Nhật ở trên là cụm lặp lại (tên nhân vật, thành ngữ, xưng hô).",
             ))
             if (removable) {
                 addView(Ui.gap(ctx, 12))

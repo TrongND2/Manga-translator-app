@@ -141,6 +141,41 @@ fun isUsableSurface(s: String): Boolean =
     s.isNotBlank() && s != "?" && JAPANESE.containsMatchIn(s)
 
 /**
+ * Chuoi nay la CA MOT CAU chu khong phai mot cum dang cho vao glossary.
+ *
+ * Vi sao can chan: o sua bong thoai dua **nguyen van ca bong** lam mat chu khi
+ * nguoi dung bam "Luu vao tu dien rieng". Mot cau nhu
+ * 「固形物みたいなせーしブリブリひねり出してるッ♡」 chi khop dung cau do tren
+ * dung trang do — khong bao gio dung lai duoc, ma van ngon prompt moi lan
+ * trang do duoc dich.
+ *
+ * Va no con dat hon the: luu vao glossary keo theo `forgetContaining`, tuc
+ * **xoa cache cua chinh trang vua dich xong**. Do tren may that: trang
+ * `26b2dd420ce31ce1` dang hit cache trong 2,6 giay, sau khi luu mot cau vao
+ * glossary thi lan sau phai dich lai tu dau (F86).
+ *
+ * Nguoi dung da tao **4 muc ca cau** theo duong nay chi trong mot phien, va
+ * truoc do da phai don 16 muc tuong tu ra khoi tu dien.
+ *
+ * Nguong lay tu SO DO chu khong uoc chung. Tren bo mau 413 muc, mat chu dai
+ * nhat la `お世話になりました` (9), ke tiep la 8 — con bon muc rac nguoi dung vua
+ * tao dai 8, 10, 18, 23. Nen:
+ *
+ *   - **10 ky tu** tro len: dai hon moi muc hop le trong bo mau.
+ *   - hoac co **dau ket cau / ky hieu cam xuc** — cai nay bat not muc 8 ky tu
+ *     `せーし重いい…ッ` ma nguong do dai bo sot.
+ *
+ * Do lai voi nguong nay: **bon muc rac bi chan het, khong muc hop le nao bi
+ * chan oan**.
+ */
+fun looksLikeWholeSentence(s: String): Boolean {
+    val t = s.trim()
+    return t.length >= 10 || t.any { it in SENTENCE_MARKS }
+}
+
+private const val SENTENCE_MARKS = "…‥。、！？!?♡♥★☆「」『』"
+
+/**
  * AD-11 — thu ma `ScreenSource` phai tam an truoc khi chup.
  *
  * Chu ky co y bat buoc dung khoi lenh chu khong phai cap `hide()` / `show()`:
