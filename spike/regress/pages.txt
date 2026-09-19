@@ -1,0 +1,23 @@
+# Bo trang chuan de do HOI QUY chat luong dich.
+#
+# Chon co chu dich, khong lay ngau nhien: phai phu ca ba duong chia dot cua
+# TranslateFilter (MAX_PER_CALL = 10), vi do la cho de vo nhat.
+# So trong ngoac la so vung kind=TextBubble detector thay o nguong 0,30
+# (quet ca 201 trang ngay 19/9).
+#
+#   >= 21 vung -> 3 dot   : CHI CO 1 trang trong ca bo 201
+#   11-20 vung -> 2 dot   : 70 trang
+#   <= 10 vung -> 1 lan   : 130 trang
+#
+# Dong bat dau bang '#' la ghi chu, bo qua.
+
+tubaki_121.jpg    # 22 vung -> [8, 8, 6]  DUONG 3 DOT, trang duy nhat trong bo
+tubaki_152.jpg    # 20 vung -> [10, 10]   sat tran mot dot
+tubaki_109.jpg    # 19 vung -> [10, 9]
+tubaki_147.jpg    # 18 vung -> [9, 9]
+tubaki_094.jpg    # 17 vung -> [9, 8]
+tubaki_048.jpg    # 17 vung -> [9, 8]
+tubaki_142.jpg    # 16 vung -> [8, 8]
+tubaki_117.jpg    # 16 vung -> [8, 8]
+tubaki_026.jpg    # 15 vung -> [8, 7]
+tubaki_010.jpg    # trang da dung xuyen suot FINDINGS, lam moc doi chieu cu

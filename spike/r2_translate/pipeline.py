@@ -31,8 +31,14 @@ def ocr_page(img: Image.Image, dets, mocr, pad: int = 2):
     return bubbles
 
 
-def translate(scene: dict, model: str, timeout: int = 1800):
-    """Goi LLM local qua HTTP API cua ollama. MOT lan goi cho CA trang."""
+def translate(scene: dict, model: str, timeout: int = 1800, temperature: float = 0.3):
+    """Goi LLM local qua HTTP API cua ollama. MOT lan goi cho CA trang.
+
+    `temperature` mac dinh GIU NGUYEN 0.3 de moi so lieu Phase 0 da do van so
+    duoc voi nhau. Bo do hoi quy (`spike/regress`) truyen 0, vi ly do do duoc:
+    chay HAI lan y het o 0.3 thi **78/187 bong tu doi (41,7%)**. Sàn nhieu cao
+    the thi khong the doc duoc tin hieu "sua prompt lam doi bao nhieu bong".
+    """
     system, user = build(scene)
     payload = {
         "model": model,
@@ -41,7 +47,7 @@ def translate(scene: dict, model: str, timeout: int = 1800):
         "stream": False,
         "think": False,
         "format": "json",
-        "options": {"temperature": 0.3, "num_ctx": 8192},
+        "options": {"temperature": temperature, "num_ctx": 8192},
     }
     req = urllib.request.Request(
         "http://127.0.0.1:11434/api/generate",
