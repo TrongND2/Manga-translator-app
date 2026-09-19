@@ -138,6 +138,8 @@ Nút thứ hai cho chọn **1 / 3 / 10 / 30 trang gần nhất, hoặc tất c�
 
 "AI trên máy" dùng **chính mô hình vẫn dịch cả trang** cho bạn — nên khi Gemini hết lượt hoặc máy chủ quá tải, bạn vẫn còn đường dùng.
 
+Nó cũng **áp từ điển riêng của bạn**, đúng như khi dịch cả trang. Trước đây thì không: cùng một cụm chữ, tra nhanh bằng nút này ra một kiểu còn dịch cả trang ra một kiểu khác, vì đường tra nhanh bỏ qua từ điển mà không báo gì.
+
 ## 🔍 Tra nghĩa bằng Gemini — tuỳ chọn, mặc định tắt
 
 Đây là **đường ra mạng duy nhất** của app, và nó được giữ rất hẹp:
