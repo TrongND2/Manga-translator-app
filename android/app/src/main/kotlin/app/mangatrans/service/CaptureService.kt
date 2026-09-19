@@ -66,6 +66,16 @@ class CaptureService : Service() {
         const val EXTRA_RESULT_CODE = "resultCode"
         const val EXTRA_RESULT_DATA = "resultData"
 
+        /**
+         * "Khong gan voi bong thoai nao" — panel khoanh chu luu tu dien khi
+         * chua he ve gi len trang.
+         *
+         * ⚠️ Truoc day cho nay dung `-1`, ma `-1` chinh la id cua lop de thu
+         * cong DAU TIEN (xem `nextManualId`). Hai thu khac han nhau dung chung
+         * mot con so la chuyen som muon gi cung no.
+         */
+        private const val NO_BUBBLE = Int.MIN_VALUE
+
         /** Cho lop phu ve xong roi moi lay moc so sanh. */
         private const val SETTLE_MS = 700L
 
@@ -94,7 +104,38 @@ class CaptureService : Service() {
          * trang moi — AD-12 goi do la loi nang nhat cua tang hien thi, nen khi
          * phai chon thi chon phia xoa oan.
          */
-        private const val PAGE_CHANGE_THRESHOLD = 0.05f
+        /**
+         * ⚠️ Nang tu 0.05 len 0.25 sau khi do lai tren may that (F76).
+         *
+         * Bang tren van dung, nhung no thieu mot cot: nhung thu **chinh app ve
+         * ra** ma bo canh khong he bo qua. Do duoc trong mot phien dung that:
+         * ```
+         *   trang tinh, da ve ban dich      0.0085 - 0.0123
+         *   mo ba icon con (giu icon me)    0.0501 / 0.0517
+         *   lop chon vung + toast cua ta    0.0746 -> 0.1148 -> 0.1415
+         *   ------------------------------------------------ nguong cu 0.05
+         *   ------------------------------------------------ nguong moi 0.25
+         *   lat sang trang khac             0.94 - 1.15
+         * ```
+         * Ba dong giua deu la GIAO DIEN CUA CHINH APP, khong phai nguoi dung
+         * sang trang — va o nguong 0.05 chung nam **tren** vach, nen chi can mo
+         * mot cai menu la mat sach ban dich dang co.
+         *
+         * Hai viec lam cung luc, khong thay the nhau:
+         *   1. bo qua MOI cho app dong toi (xem `OverlayController.appOwnedBoxesOnScreen`)
+         *   2. nang nguong len 0.25 — van cach cu lat trang **3,8 lan**, con
+         *      cach cai gia te nhat do duoc 1,8 lan.
+         *
+         * Viec (2) can rieng vi con nhung thu app KHONG doan truoc duoc: bang
+         * am luong, thong bao nhay len, hop thoai he thong. Chung khong phai
+         * "nguoi dung sang trang" nhung o 0.05 thi deu vuot.
+         *
+         * Danh doi da biet: trang doi **it** (cuon mot doan ngan trong che do
+         * cuon lien tuc) co the khong bi bat. Khi do ban dich nam lech thay ro
+         * bang mat, nguoi dung cham dich lai la xong — con bi vut ca luot dich
+         * hai phut thi khong co duong nao cuu.
+         */
+        private const val PAGE_CHANGE_THRESHOLD = 0.25f
 
         /**
          * Man hinh phai YEN bao lau thi moc so sanh moi duoc chot.
@@ -109,17 +150,31 @@ class CaptureService : Service() {
         private const val WATCH_POLL_MS = 150L
 
         /**
-         * Phai vuot nguong BAO NHIEU nhip LIEN TIEP moi ket luan la doi trang.
+         * Man hinh phai KHAC LIEN TUC bao lau thi moi ket luan la doi trang.
          *
-         * Lat trang la chuyen keo dai — trang moi nam do cho den khi nguoi dung
-         * lat tiep. Con mot nhip le vuot nguong thi hau het la nhieu: dung luc
-         * app ve mot bong thoai, mot frame bat duoc giua chung, hay mot cai
-         * toast luot qua.
+         * ⚠️ Thay cho luat "2 nhip lien tiep" cu, va ly do la luat do **khong
+         * lam duoc viec no dinh lam**.
          *
-         * Gia phai tra la 150 ms cham hon — khong dang ke so voi 4 giay cua ban
-         * truoc F61, va doi lai la khong vut ca luot dich vi mot nhip nhieu.
+         * `peekFrameSignature` tra `null` khi KHONG co frame moi — ma khong co
+         * frame moi nghia la man hinh **dung yen**, tuc la van dang khac moc y
+         * nhu nhip truoc. Ban cu coi `null` la "dem lai tu dau", nen luat 2
+         * nhip lien tiep thuc chat thanh "2 frame trong vong 150 ms". Hau qua
+         * do duoc tren may: nguoi dung lat trang luc 13:41:56 ma mai 13:42:50
+         * app moi nhan ra — **cham 54 giay**, va chi bat duoc vi luc do app dang
+         * ve bong nen moi co frame lien tiep (F76).
+         *
+         * Dem theo THOI GIAN thi khong phu thuoc co frame hay khong: vuot
+         * nguong thi bam gio, tut xuong duoi nguong thi xoa gio. Mot nhip nhieu
+         * le loi se bi chinh frame ke tiep xoa, con man hinh doi that thi dung
+         * yen o trang thai khac va den han la bao.
          */
-        private const val PAGE_CHANGE_CONFIRM = 2
+        private const val PAGE_CHANGE_DWELL_MS = 400L
+
+        /**
+         * Toast `LENGTH_LONG` keo ~3,5 giay; cong them mot nhip cho he thong
+         * ve xong khi no bien mat.
+         */
+        private const val TOAST_BLIND_MS = 4_000L
 
         /**
          * Icon noi dang bat hay khong — man hinh chinh dung de doi mot nut duy
@@ -157,6 +212,37 @@ class CaptureService : Service() {
      */
     @Volatile private var currentPage: app.mangatrans.domain.PageJob? = null
 
+    /**
+     * Lop de THU CONG (`⌖`), giu TACH RIENG khoi `currentPage`.
+     *
+     * ⚠️ Truoc day chung duoc nhet thang vao `currentPage.bubbles`, va cho do
+     * de ra hai loi cung mot luc:
+     *
+     *   1. `PageEvent.Done` thay ca `currentPage` moi lan dich lai -> lop de
+     *      bien mat, nguoi dung phai khoanh lai tu dau;
+     *   2. `applyEdit` ghi cache voi chu ky box lay tu `currentPage.bubbles`,
+     *      nen chu ky do gom CA box cua lop de — trong khi luc doc, `FileCache`
+     *      doi chieu bang box cua detector. Hai chu ky khong bao gio khop nua,
+     *      va muc cache do **chet vinh vien**: trang do dich lai cham nhu lan
+     *      dau, mai mai.
+     *
+     * Tach ra thi `currentPage` lai dung la ket qua cua day chuyen, khong hon.
+     */
+    private val manual = java.util.concurrent.CopyOnWriteArrayList<app.mangatrans.domain.Bubble>()
+
+    /**
+     * `contentKey` cua trang ma dam lop de tren thuoc ve.
+     *
+     * Rong = chung duoc ve khi chua dich trang nao, nen khong gan duoc vao
+     * trang nao ca; luc do chung chi song den luot dich ke tiep.
+     */
+    @Volatile private var manualKey: String = ""
+
+    /**
+     * Anh trang dang hien. Bo canh trang lay no lam moc, va no la thu duy nhat
+     * cho phep BAT LAI bo canh sau khi no da thoat.
+     */
+    @Volatile private var pageShot: Bitmap? = null
 
     /** Story 3.7 — canh noi dung ben duoi doi de go lop phu. */
     private var watching: Job? = null
@@ -179,6 +265,24 @@ class CaptureService : Service() {
      * biet hai loai o cho khac.
      */
     private var nextManualId = -1
+
+    /**
+     * Cum chu va khung cua lan khoanh ĐANG mo.
+     *
+     * ⚠️ Phai la mot BIEN, khong duoc dong trong lambda cua panel.
+     *
+     * `GrabResultOverlay` duoc tao mot lan roi dung lai (de khoi dung cua so
+     * moi moi lan), nen lambda `onDraw` cua no giu `box` va `ja` cua lan khoanh
+     * **DAU TIEN** mai mai. Do duoc tren may: lan khoanh thu hai doc ra 「そんな」
+     * nhung khi bam "De len trang" thi app ve o khung `(931,1172) 135x270` cua
+     * lan thu nhat, kem nguyen ban 「そういう」 cua lan thu nhat (F76).
+     */
+    private data class GrabTarget(val box: app.mangatrans.domain.Box, val ja: String)
+
+    @Volatile private var grabTarget: GrabTarget? = null
+
+    /** Bong thoai dang mo trong o sua. Cung ly do voi `grabTarget`. */
+    @Volatile private var editTarget: app.mangatrans.domain.Bubble? = null
 
     /**
      * Nguoi dung DA dong y cho chup chua.
@@ -328,6 +432,12 @@ class CaptureService : Service() {
         // dung han — nguoi dung khong thay, nhung may van am them vai giay.
         if (running?.isActive == true) {
             running?.cancel()
+            // ⚠️ Phai huy CA bo canh trang, khong chi luot dich.
+            //
+            // `clearPage()` ngay duoi thu hoi anh trang — ma anh do chinh la
+            // MOC SO SANH bo canh dang cam. Bo canh con song thi nhip ke tiep
+            // se `getPixel` tren mot bitmap da thu hoi va **lam sap app**.
+            watching?.cancel()
             scope.launch {
                 overlays?.clearPage()
                 setIconState(if (src.isAlive) FloatingIcon.State.Ready else FloatingIcon.State.NeedPermission)
@@ -362,10 +472,10 @@ class CaptureService : Service() {
         val frameHash = PageHash.frameHash(bitmap, 0)
 
         setIconState(FloatingIcon.State.Reading)
+        // Anh trang dang hien — moc so sanh cua bo canh trang, va la thu duy
+        // nhat cho phep bat lai bo canh sau khi no da thoat (xem `drawManual`).
+        pageShot = bitmap
         var drawn = 0
-        // Vung app TU VE len — bo canh trang phai bo qua, neu khong chinh ban
-        // dich vua ve lai bi coi la "nguoi dung sang trang".
-        val drawnRects = java.util.concurrent.CopyOnWriteArrayList<app.mangatrans.domain.Box>()
         // Tim thay bao nhieu bong thoai — de phan biet "khong thay bong nao"
         // voi "co bong nhung dich hong". Hai cai do doi hai cau bao khac han.
         var found = 0
@@ -393,7 +503,6 @@ class CaptureService : Service() {
                         // chua biet co ve duoc gi khong, ma AD-9 cam to nen som.
                         if (first) ov.beginPage(bitmap, frameHash, statusBarHeight(), tf)
                         drawn++
-                        drawnRects += app.mangatrans.pipeline.BubbleRenderer.drawnRect(ev.bubble)
                         ov.addBubble(ev.bubble)
                         // Bat bo canh NGAY tu bong dau tien, khong doi ca trang
                         // xong. Nguoi dung lat trang / chuyen app giua chung thi
@@ -405,9 +514,9 @@ class CaptureService : Service() {
                         // phu **dang duoc them vao** — bat duoc mot khung dang
                         // do. Do duoc dung mot nhip nhu the: d=0.1614 (gap 60
                         // lan sang nhieu thuong), nhip ke tiep 0.0024. Bat sau
-                        // `addBubble` thi co `selfChanging` dang gio, nhip do
+                        // `addBubble` thi phan giu cua no dang co hieu luc, nhip do
                         // bi bo qua han.
-                        if (first) watchForPageChange(src, bitmap, drawnRects)
+                        if (first) watchForPageChange(src, bitmap)
                     }
 
                     // AD-17 — go bubble da ve, chu Nhat goc hien lai nguyen ven.
@@ -449,8 +558,17 @@ class CaptureService : Service() {
         if (!kotlinx.coroutines.currentCoroutineContext().isActive) return
 
         Log.i(TAG, "xong: ve $drawn bubble")
+        // Tra lai nhung lop de THU CONG cua dung trang nay (F76).
+        //
+        // Nguoi dung khoanh chu hieu ung, de ban dich len, roi cham dich lai —
+        // ban truoc `beginPage` xoa sach cua so va `PageEvent.Done` thay luon
+        // `currentPage`, nen cong khoanh tay bien mat khong dau vet. Ho phai
+        // khoanh lai tu dau moi lan.
+        if (drawn > 0) restoreManual()
         // Cua so ban dich duoc them SAU icon nen nam tren no. Bong thoai nao
         // gan mep la de len icon va nuot cu cham — dua icon len lai (F44).
+        // `TranslationOverlay.sync` da tu lam viec nay moi khi mot cua so moi
+        // trum len icon; giu them o day cho truong hop icon bi keo den sau.
         if (drawn > 0) ov.raiseIcon()
         // Bo canh da chay tu bong dau tien roi; o day chi con don khi khong ve
         // duoc gi.
@@ -574,7 +692,6 @@ class CaptureService : Service() {
     private fun watchForPageChange(
         src: MediaProjectionSource,
         page: android.graphics.Bitmap,
-        mask: List<app.mangatrans.domain.Box>,
     ) {
         watching?.cancel()
         watching = scope.launch {
@@ -590,33 +707,49 @@ class CaptureService : Service() {
             // Gio bo qua dung vung bong thoai va vung icon — hai cho duy nhat
             // app dong toi. Phan con lai la tranh: doi la nguoi dung that su
             // doi man hinh, va bat ngay o nhip hoi dau tien.
-            var known = -1
+            var known: List<app.mangatrans.domain.Box>? = null
             var baseline: FloatArray? = null
-            /** So nhip LIEN TIEP da vuot nguong. */
-            var hits = 0
+            /** Moc gio bat dau vuot nguong. 0 = dang khong nghi ngo gi. */
+            var overSince = 0L
+            var lastD = 0f
             while (isActive && src.isAlive) {
+                // Anh moc da bi thu hoi (lop phu vua bi xoa) -> khong con gi de
+                // so. Dung im la dung; `getPixel` tren bitmap da thu hoi la sap
+                // app ngay lap tuc.
+                if (page.isRecycled) return@launch
                 val ov = overlays ?: return@launch
-                // Dang tu an lop phu de chup — bo qua nhip nay.
-                if (ov.selfChanging.get()) { delay(WATCH_POLL_MS); continue }
+                // Dang tu an lop phu de chup, hay dang mo mot panel cua chinh
+                // ta — khung hinh luc nay khong so duoc voi cai gi ca.
+                if (ov.isSelfChanging) {
+                    overSince = 0L
+                    delay(WATCH_POLL_MS); continue
+                }
 
-                val boxes = mask + ov.iconBox().let {
-                    val dy = statusBarHeight()
+                val dy = statusBarHeight()
+                // ⚠️ Hoi LAI moi nhip, va bo qua MOI cho app dong toi — khong
+                // phai mot danh sach chot tu dau luot. Icon keo duoc, icon con
+                // mo ra dong vao, lop de thu cong them bat cu luc nao: danh
+                // sach chot lai la danh sach sai ngay nhip sau (F76).
+                val boxes = ov.appOwnedBoxesOnScreen().map {
                     app.mangatrans.domain.Box(it.x1, it.y1 - dy, it.x2, it.y2 - dy)
                 }
-                if (boxes.size != known) {
-                    known = boxes.size
+                // So theo GIA TRI, khong theo so luong: keo icon sang cho khac
+                // giu nguyen so luong nhung moc thi phai lay lai.
+                if (boxes != known) {
+                    known = boxes
                     baseline = PageHash.frameSignature(page, 0, boxes)
-                    // Moc vua doi thi chuoi dang dem khong con y nghia.
-                    hits = 0
+                    overSince = 0L
                 }
 
                 val now = src.peekFrameSignature(boxes)
                 val base = baseline
-                // `null` = vung bo qua da nuot gan het man hinh, hoac chua bat
-                // duoc frame nao. KHONG ket luan gi ca — dung im con hon doan,
-                // vi doan sai o day la vut ca luot dich sap xong.
+                // `null` = vung bo qua da nuot gan het man hinh, hoac KHONG CO
+                // FRAME MOI. Truong hop sau nghia la man hinh dung yen, tuc van
+                // dung trang thai da do o nhip truoc — nen **giu nguyen** moc
+                // gio dang bam, dung xoa (xem PAGE_CHANGE_DWELL_MS).
                 if (now != null && base != null) {
                     val d = PageHash.distance(base, now)
+                    lastD = d
                     // Duong DO nguong, khong phai log thuong. Chi so do — khong
                     // co noi dung man hinh — va chi chay khi co co adb, vi no
                     // ghi 7 dong moi giay.
@@ -626,24 +759,32 @@ class CaptureService : Service() {
                             d, now.count { !it.isNaN() }, boxes.size,
                         ),
                     )
-                    if (d > PAGE_CHANGE_THRESHOLD) hits++ else hits = 0
-                    if (hits >= PAGE_CHANGE_CONFIRM) {
-                        Log.i(TAG, "man hinh doi (khac %.2f) — dung dich, go lop phu".format(d))
-                        // Luu lai DUNG khung hinh da gay bao dong. Con so `d`
-                        // noi duoc "khac bao nhieu" nhung khong noi duoc "khac
-                        // o dau" — ma bao dong gia thi cau hoi luon la cai gi
-                        // vua doi tren man hinh. Chi chay khi co co adb.
-                        dumpAlarmFrame(src, d)
-                        running?.cancel()
-                        ov.clearPage()
-                        setIconState(
-                            if (src.isAlive) FloatingIcon.State.Ready
-                            else FloatingIcon.State.NeedPermission
-                        )
-                        return@launch
+                    if (d > PAGE_CHANGE_THRESHOLD) {
+                        if (overSince == 0L) overSince = System.currentTimeMillis()
+                    } else {
+                        overSince = 0L
                     }
-                } else {
-                    hits = 0
+                }
+
+                if (overSince != 0L &&
+                    System.currentTimeMillis() - overSince >= PAGE_CHANGE_DWELL_MS
+                ) {
+                    Log.i(TAG, "man hinh doi (khac %.2f) — dung dich, go lop phu".format(lastD))
+                    // Luu lai DUNG khung hinh da gay bao dong. Con so `d`
+                    // noi duoc "khac bao nhieu" nhung khong noi duoc "khac
+                    // o dau" — ma bao dong gia thi cau hoi luon la cai gi
+                    // vua doi tren man hinh. Chi chay khi co co adb.
+                    dumpAlarmFrame(src, lastD)
+                    running?.cancel()
+                    ov.clearPage()
+                    // Lop de thu cong thuoc ve TRANG CU — go khoi man hinh cung
+                    // voi ban dich. Van giu trong `manual` de khi nguoi dung
+                    // quay lai dung trang do va dich lai thi chung hien lai.
+                    setIconState(
+                        if (src.isAlive) FloatingIcon.State.Ready
+                        else FloatingIcon.State.NeedPermission
+                    )
+                    return@launch
                 }
                 delay(WATCH_POLL_MS)
             }
@@ -664,6 +805,14 @@ class CaptureService : Service() {
         editor = null
         grabPanel?.hide()
         grabPanel = null
+        selection?.hide()
+        selection = null
+        manual.clear()
+        manualKey = ""
+        grabTarget = null
+        editTarget = null
+        pageShot = null
+        currentPage = null
         scope.launch {
             runCatching { engines?.translator?.release() }   // AD-24
         }
@@ -698,15 +847,23 @@ class CaptureService : Service() {
      * Vi sao sua chu khong phai xoa roi dich lai: do duoc, dich lai cung mot
      * trang cho **5/5 cau giong het tung chu**. Xoa chi tra ve dung cai sai cu.
      */
+    /** Bong thoai theo id — tim ca trong lop de thu cong lan ket qua day chuyen. */
+    private fun bubbleById(id: Int): app.mangatrans.domain.Bubble? =
+        manual.firstOrNull { it.id == id }
+            ?: currentPage?.bubbles?.firstOrNull { it.id == id }
+
     private fun openBubbleEditor(id: Int) {
-        val b = currentPage?.bubbles?.firstOrNull { it.id == id } ?: return
+        val b = bubbleById(id) ?: return
         val ov = overlays ?: return
+        // ⚠️ Panel dung lai giua cac lan mo, nen MOI lambda duoi day phai doc
+        // `editTarget` chu khong duoc dong lay `id`/`b` cua lan mo dau tien —
+        // neu khong, sua bong thoai thu hai se ghi de vao bong thu nhat.
         val panel = editor ?: EditBubbleOverlay(
             this,
             getSystemService(WINDOW_SERVICE) as WindowManager,
-            onSavePage = { vi -> applyEdit(id, vi) },
-            onRemove = { removeManual(id) },
-            onSaveGlossary = { vi -> saveToGlossary(id, b.ja, vi) },
+            onSavePage = { vi -> editTarget?.let { applyEdit(it.id, vi) } },
+            onRemove = { editTarget?.let { removeManual(it.id) } },
+            onSaveGlossary = { vi -> editTarget?.let { saveToGlossary(it.id, it.ja, vi) } },
             onAsk = { ja, back -> askGemini(ja, back) },
             onLocal = { ja, back -> translateOnePhrase(ja, back) },
             // Tam ngung bo canh trang trong luc panel mo. Panel la lop phu cua
@@ -715,7 +872,7 @@ class CaptureService : Service() {
             // duoc voi ban lam bang Activity: `man hinh doi (khac 0.94)` dung
             // giay mo man sua.
             //
-            // Dung `selfChanging` chu khong huy han bo canh: moc so sanh giu
+            // Dung `holdSelfChange` chu khong huy han bo canh: moc so sanh giu
             // nguyen, nen dong panel la no chay tiep ngay, khong phai lay moc lai.
             // ⚠️ Phai VUT HANG DOI FRAME truoc khi bat bo canh lai.
             //
@@ -725,12 +882,17 @@ class CaptureService : Service() {
             // ngay la doi trang. Do duoc: `man hinh doi (khac 1.31)` dung giay
             // dong panel, va ca trang mat ban dich.
             onClosed = {
+                editTarget = null
                 source?.drainFrames()
-                ov.selfChanging.set(false)
+                overlays?.releaseSelfChange()
             },
         ).also { editor = it }
 
-        ov.selfChanging.set(true)
+        // Dong lan truoc truoc khi dat `editTarget` — `show()` goi `hide()`,
+        // ma `hide()` chay `onClosed` va cai do xoa `editTarget`.
+        panel.hide()
+        editTarget = b
+        ov.holdSelfChange()
         // Id am = lop de thu cong (xem `nextManualId`) -> cho go han.
         panel.show(b.ja, b.vi.orEmpty(), removable = id < 0)
     }
@@ -738,7 +900,10 @@ class CaptureService : Service() {
     /** Go mot lop de thu cong, tra lai tranh goc o dung cho do. */
     private fun removeManual(id: Int) {
         val ov = overlays ?: return
-        currentPage = currentPage?.let { p -> p.withBubbles(p.bubbles.filterNot { it.id == id }) }
+        // Bong do day chuyen sinh ra thi KHONG go — go mot bong le se de lai
+        // mot lo tren trang ma khong co duong nao lay lai.
+        if (id >= 0) return
+        manual.removeAll { it.id == id }
         scope.launch {
             withContext(Dispatchers.Main) { ov.translation.retract(listOf(id)) }
             toast("Đã gỡ lớp đè.")
@@ -809,8 +974,28 @@ class CaptureService : Service() {
      * ca danh sach box (AD-18), nen ghi thieu la lan sau doc ra coi nhu hong.
      */
     private fun applyEdit(id: Int, vi: String) {
+        if (vi.isBlank()) return
+
+        // Lop de THU CONG: khong thuoc ve day chuyen, nen khong co cho trong
+        // cache cua trang. Sua tai cho la du — `manual` giu no qua cac luot
+        // dich lai trong phien nay.
+        //
+        // ⚠️ Ban truoc `return` thang o day voi moi `id < 0`, nghia la bam
+        // "Luu cho riêng trang này" tren mot lop de **khong lam gi ca**.
+        if (id < 0) {
+            val i = manual.indexOfFirst { it.id == id }
+            if (i < 0) return
+            val edited = manual[i].copy(vi = vi)
+            manual[i] = edited
+            scope.launch {
+                overlays?.translation?.let { ov ->
+                    withContext(Dispatchers.Main) { ov.replace(edited) }
+                }
+            }
+            return
+        }
+
         val page = currentPage ?: return
-        if (id < 0 || vi.isBlank()) return
         val next = page.bubbles.map { if (it.id == id) it.copy(vi = vi) else it }
         currentPage = page.withBubbles(next)
 
@@ -819,16 +1004,35 @@ class CaptureService : Service() {
             overlays?.translation?.let { ov ->
                 withContext(Dispatchers.Main) { ov.replace(edited) }
             }
-            // `contentKey` rong = trang nay khong den tu day chuyen (lop de thu
-            // cong khi chua dich trang nao). Khong co khoa that thi khong ghi
-            // cache — ghi vao se de lai mot file ten rong, doc ra la rac.
+            // `contentKey` rong = trang nay khong den tu day chuyen. Khong co
+            // khoa that thi khong ghi cache — ghi vao se de lai mot file ten
+            // rong, doc ra la rac.
             if (page.contentKey.isBlank()) return@launch
+            // ⚠️ `page.bubbles` gio CHI con vung do detector tim ra, vi lop de
+            // thu cong da duoc tach sang `manual`. Do la dieu kien de chu ky
+            // box o day khop voi chu ky ma `Pipeline` ghi luc dau — lech mot
+            // box la muc cache nay khong bao gio doc lai duoc nua.
             runCatching {
                 app.mangatrans.adapters.storage.FileCache(
                     java.io.File(cacheDir, "pages")
                 ).put(page.contentKey, page.bubbles.map { it.box }, next)
             }.onFailure { Log.w(TAG, "khong ghi duoc cache sau khi sua: ${it.javaClass.simpleName}") }
         }
+    }
+
+    /**
+     * Ve lai nhung lop de thu cong thuoc ve trang VUA dich xong.
+     *
+     * Gan theo `contentKey` chu khong phai "cai nao con trong bo nho": trang
+     * khac thi khong duoc tra ra, neu khong day dung la loi AD-12 cam — ban
+     * dich cua trang truoc nam de len trang sau.
+     */
+    private suspend fun restoreManual() {
+        val ov = overlays ?: return
+        val key = currentPage?.contentKey.orEmpty()
+        if (key.isBlank() || key != manualKey || manual.isEmpty()) return
+        manual.forEach { ov.addManual(it) }
+        Log.i(TAG, "tra lai ${manual.size} lop de thu cong")
     }
 
     private fun startGrabText() {
@@ -838,19 +1042,55 @@ class CaptureService : Service() {
         if (engines == null) { toast("Đang chuẩn bị, đợi một chút"); return }
         if (selection != null) return
 
+        // ⚠️ Giu bo canh trang TU DAY, khong doi den luc panel ket qua mo.
+        //
+        // Lop chon vung phu toi ca man hinh va viet chu huong dan giua man —
+        // do la thay doi lon nhat app tu gay ra, va truoc day no khong duoc
+        // che chan gi. Do duoc tren may: bam `⌖` mot cai la `d` nhay
+        // 0.0746 -> 0.1148 -> 0.1415, vuot nguong, va **ca trang mat sach ban
+        // dich ngay truoc mat** — nguoi dung chua kip khoanh xong (F76).
+        ov.holdSelfChange()
+
         selection = app.mangatrans.adapters.overlay.SelectionOverlay(
             this,
             getSystemService(WINDOW_SERVICE) as WindowManager,
             onPick = { box ->
                 selection?.hide(); selection = null
+                // KHONG nha o day: `grabText` nha, sau khi panel ket qua da
+                // kip giu phan cua no. Nha som la ho mot khe giua hai cai.
                 scope.launch { grabText(src, box) }
             },
-            onCancel = { selection?.hide(); selection = null },
+            onCancel = {
+                selection?.hide(); selection = null
+                source?.drainFrames()
+                ov.releaseSelfChange()
+            },
         ).also { it.show() }
         toast("Kéo một khung quanh chữ cần lấy")
     }
 
+    /**
+     * ⚠️ `finally` chu khong phai nha o tung nhanh `return`.
+     *
+     * Phan giu bo canh trang bat dau tu `startGrabText` va phai duoc nha dung
+     * MOT lan du di ra loi nao — ke ca khi coroutine bi HUY giua chung (nguoi
+     * dung bam ✕, hay bo canh cua luot dich khac cat ngang). Nha thieu mot lan
+     * la bo canh mu vinh vien, va luc do ban dich cua trang cu se nam de len
+     * trang moi — dung dieu AD-12 cam.
+     */
     private suspend fun grabText(src: MediaProjectionSource, boxOnScreen: app.mangatrans.domain.Box) {
+        try {
+            grabTextInner(src, boxOnScreen)
+        } finally {
+            source?.drainFrames()
+            overlays?.releaseSelfChange()
+        }
+    }
+
+    private suspend fun grabTextInner(
+        src: MediaProjectionSource,
+        boxOnScreen: app.mangatrans.domain.Box,
+    ) {
         setIconState(FloatingIcon.State.Reading)
         val ocr = engines?.ocr
         val shot = runCatching { src.capture() }.getOrNull()
@@ -883,9 +1123,10 @@ class CaptureService : Service() {
             toast("Không đọc được chữ nào trong khung đó.")
             return
         }
-        grabShot = bmp
         // KHONG ghi `text` ra log — do la noi dung man hinh rieng cua nguoi dung.
-        withContext(Dispatchers.Main) { showGrabResult(src, bmp, box, text) }
+        // `showGrabResult` nhan luon quyen so huu `bmp` (dat vao `grabShot`);
+        // panel tu giu phan cua no, phan cua lop chon vung nha o `finally`.
+        withContext(Dispatchers.Main) { showGrabResult(bmp, box, text) }
     }
 
     // ---------- khoanh chu -> dich -> de len trang ----------
@@ -898,7 +1139,6 @@ class CaptureService : Service() {
      * den luc do. `TranslationOverlay.clear()` se thu hoi no sau.
      */
     private fun showGrabResult(
-        src: MediaProjectionSource,
         shot: Bitmap,
         box: app.mangatrans.domain.Box,
         ja: String,
@@ -909,18 +1149,31 @@ class CaptureService : Service() {
             getSystemService(WINDOW_SERVICE) as WindowManager,
             onLocal = { s, back -> translateOnePhrase(s, back) },
             onGemini = { s, back -> askGemini(s, back) },
-            onDraw = { vi -> drawManual(box, ja, vi) },
-            onSaveGlossary = { vi -> saveToGlossary(-1, ja, vi) },
+            onDraw = { vi -> grabTarget?.let { drawManual(it.box, it.ja, vi) } },
+            onSaveGlossary = { vi -> grabTarget?.let { saveToGlossary(NO_BUBBLE, it.ja, vi) } },
             onClosed = {
                 // Khong giao cho lop phu thi phai tu don.
                 grabShot?.let { s -> runCatching { s.recycle() } }
                 grabShot = null
+                grabTarget = null
                 source?.drainFrames()
-                ov.selfChanging.set(false)
+                overlays?.releaseSelfChange()
             },
         ).also { grabPanel = it }
 
-        ov.selfChanging.set(true)
+        // ⚠️ Dong lan truoc TRUOC KHI dat trang thai moi.
+        //
+        // `show()` tu goi `hide()` neu panel dang mo, ma `hide()` chay
+        // `onClosed` — cai do **thu hoi `grabShot` va xoa `grabTarget`**. Dat
+        // truoc roi goi `show()` la tu tay xoa dung thu vua dat: anh nen bi thu
+        // hoi trong khi lop de sap can no, va khung/nguyen ban ve null.
+        panel.hide()
+
+        grabShot = shot
+        // Panel dung lai giua cac lan khoanh — xem `GrabTarget`. Lambda phai
+        // doc bien nay, khong duoc dong lay `box`/`ja` cua lan dau.
+        grabTarget = GrabTarget(box, ja)
+        ov.holdSelfChange()
         panel.show(ja)
     }
 
@@ -981,6 +1234,7 @@ class CaptureService : Service() {
                     return@launch
                 }
                 grabShot = null
+                pageShot = shot
                 ov.beginPage(shot, PageHash.frameHash(shot, 0), statusBarHeight(), tf)
             }
             val id = nextManualId--
@@ -991,22 +1245,32 @@ class CaptureService : Service() {
                 // cho biet lop de nay tu chu nao ra.
                 detectScore = 1f, ja = ja, vi = vi,
             )
-            // ⚠️ Phai TU TAO `currentPage` neu chua co.
+            // Gan dam lop de vao DUNG trang dang hien. Doi trang thi bo dam cu
+            // di — tra lop de cua trang truoc ra trang sau chinh la loi AD-12
+            // cam tuyet doi.
             //
-            // Nguoi dung hoan toan co the khoanh chu ma chua tung dich trang
-            // nao — luc do `currentPage` la null, va neu chi `?.let` thi lop de
-            // khong duoc ghi vao dau ca. Hau qua: no ve ra man hinh nhung cham
-            // hai cai vao khong mo duoc o sua, vi `openBubbleEditor` tim trong
-            // `currentPage` khong thay. Da mac dung mot lan.
+            // `contentKey` rong = chua dich trang nao, nen khong gan duoc vao
+            // dau; luc do lop de chi song den luot dich ke tiep.
+            val key = currentPage?.contentKey.orEmpty()
+            if (key != manualKey) {
+                manual.clear()
+                manualKey = key
+            }
+            manual += b
+            withContext(Dispatchers.Main) { ov.addManual(b) }
+
+            // ⚠️ Bat LAI bo canh trang neu no da thoat.
             //
-            // `contentKey` de rong co chu y — xem `applyEdit`: rong thi khong
-            // ghi cache, vi khong co trang that nao de gan vao.
-            val page = currentPage ?: app.mangatrans.domain.PageJob(
-                jobId = "manual", frameHash = "", contentKey = "",
-                pageWidth = 0, pageHeight = 0,
-            )
-            currentPage = page.withBubbles(page.bubbles + b)
-            withContext(Dispatchers.Main) { ov.translation.add(b) }
+            // Bo canh `return@launch` han sau moi lan bao dong, nen tu luc do
+            // tro di khong con ai canh nua. Lop de ve sau do nam li tren man
+            // hinh qua ca nhung cu lat trang — do duoc: mot lop de trong qua
+            // tu trang 70 sang trang 69 ma khong bi go (F76).
+            val s = source
+            if (s != null && s.isAlive && watching?.isActive != true) {
+                // `!isRecycled`: `TranslationOverlay.clear()` thu hoi anh trang,
+                // nen `pageShot` co the la mot con tro treo.
+                pageShot?.takeIf { !it.isRecycled }?.let { watchForPageChange(s, it) }
+            }
             toast("Đã đè lên trang. Chạm hai cái vào đó để sửa hoặc gỡ.")
         }
     }
@@ -1039,8 +1303,29 @@ class CaptureService : Service() {
         )
     }
 
+    /**
+     * ⚠️ Moi cai toast deu phai GIU bo canh trang trong suot thoi gian no hien.
+     *
+     * Toast do HE DIEU HANH ve, khong phai cua so cua app — `setVisibleForCapture`
+     * khong cham toi duoc, va cung khong co cach nao hoi vi tri de bo qua vung
+     * do. Nhung no la mot mang toi kha to o day man hinh, va no **nam ngoai moi
+     * bong thoai**, tuc dung cho ma bo canh coi la "tranh, phan app khong bao
+     * gio dong toi".
+     *
+     * Do duoc: khung hinh gay bao dong `d=0.115` co dung hai thu — lop chon
+     * vung, va cai toast "Kéo một khung quanh chữ cần lấy" (F76).
+     *
+     * Gia phai tra: bo canh mu trong ~4 giay sau moi cau bao. Chap nhan duoc —
+     * app chi noi khi co viec, va lat trang sau do van bat duoc o nhip ke tiep.
+     */
     private fun toast(msg: String) = scope.launch(Dispatchers.Main) {
+        overlays?.holdSelfChange()
         Toast.makeText(this@CaptureService, msg, Toast.LENGTH_LONG).show()
+        scope.launch {
+            delay(TOAST_BLIND_MS)
+            source?.drainFrames()
+            overlays?.releaseSelfChange()
+        }
     }
 
     private fun setIconState(s: FloatingIcon.State) = scope.launch(Dispatchers.Main) {

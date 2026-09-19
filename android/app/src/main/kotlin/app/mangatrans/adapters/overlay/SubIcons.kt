@@ -106,6 +106,22 @@ class SubIcons(
         close.visibility = v
     }
 
+    /**
+     * Ba o vuong ba icon con dang chiem, TOA DO MAN HINH.
+     *
+     * Bo canh trang phai bo qua chung. Do duoc tren may: giu icon me de mo ba
+     * icon nay lam `d` nhay tu 0,0056 len **0,0517** — vuot nguong 0,05 chi
+     * bang viec hien mot cai menu cua chinh app (F76).
+     */
+    fun boxesOnScreen(): List<app.mangatrans.domain.Box> {
+        if (!attached) return emptyList()
+        val x = xPos.coerceIn(0, screenW - subPx)
+        return listOf(bookY, grabY, closeY).map { yy ->
+            val y = yy.coerceIn(0, screenH - subPx)
+            app.mangatrans.domain.Box(x, y, x + subPx, y + subPx)
+        }
+    }
+
     private fun circle(glyph: String, color: Int, onClick: () -> Unit) = TextView(ctx).apply {
         text = glyph
         gravity = Gravity.CENTER

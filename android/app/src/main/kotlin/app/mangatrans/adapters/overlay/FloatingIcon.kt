@@ -126,6 +126,13 @@ class FloatingIcon(
     fun boxOnScreen(): app.mangatrans.domain.Box =
         app.mangatrans.domain.Box(lp.x, lp.y, lp.x + dp(ICON_DP), lp.y + dp(ICON_DP))
 
+    /**
+     * Icon me VA ba icon con neu dang mo — tat ca cho icon nay dong toi tren
+     * man hinh. Bo canh trang phai bo qua het, khong chi rieng icon me.
+     */
+    fun boxesOnScreen(): List<app.mangatrans.domain.Box> =
+        listOf(boxOnScreen()) + (subIcons?.boxesOnScreen() ?: emptyList())
+
     fun raise() {
         if (!attached) return
         runCatching { wm.removeView(root) }

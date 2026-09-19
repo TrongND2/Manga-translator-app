@@ -66,6 +66,17 @@ class TranslationOverlay(
     private val onPeek: (Boolean) -> Unit = {},
     /** Cham hai cai vao mot bong thoai = muon sua ban dich cua rieng no. */
     private val onEditBubble: (Int) -> Unit = {},
+    /**
+     * Khung icon noi tren man hinh, va cach dua no len tren cung.
+     *
+     * Vi sao o day chu khong o goc lap rap: chi `sync()` moi biet luc nao mot
+     * cua so MOI duoc them — ma cua so them sau luon nam tren icon (xem
+     * `FloatingIcon.raise`). Goi o cuoi luot dich nhu truoc la khong du: lop
+     * de thu cong ve sau do chon mat icon, va do duoc bang `dumpsys window`
+     * la cua so lop de nam TREN cua so icon, nuot luon cu cham (F77).
+     */
+    private val iconBoxOnScreen: () -> Box? = { null },
+    private val raiseIcon: () -> Unit = {},
 ) {
 
     private companion object {
@@ -208,6 +219,10 @@ class TranslationOverlay(
             if (id !in want) panes.remove(id)?.let { runCatching { wm.removeView(it) } }
         }
 
+        // Cua so nao VUA duoc them ma trum len icon thi phai dua icon len lai.
+        var buriedIcon = false
+        val icon = iconBoxOnScreen()
+
         want.forEach { (id, b) ->
             val r = BubbleRenderer.drawnRect(b)
             if (r.width < MIN_SIDE_PX || r.height < MIN_SIDE_PX) return@forEach
@@ -216,14 +231,40 @@ class TranslationOverlay(
                 val pane = Pane(id)
                 wirePeek(pane)
                 pane.visibility = if (visible) View.VISIBLE else View.INVISIBLE
-                runCatching { wm.addView(pane, params(r)) }.onSuccess { panes[id] = pane }
+                runCatching { wm.addView(pane, params(r)) }.onSuccess {
+                    panes[id] = pane
+                    if (icon != null && overlaps(onScreen(r), icon)) buriedIcon = true
+                }
             } else {
                 runCatching { wm.updateViewLayout(p, params(r)) }
             }
         }
 
+        // ⚠️ CHI goi khi that su bi trum. Goi moi lan them mot bong se lam icon
+        // chop giat mot lan cho moi bong — ghi chu cu o `FloatingIcon.raise`
+        // noi dung ve cai gia, chi thieu ve dieu kien.
+        if (buriedIcon) raiseIcon()
+
         panes.values.forEach { it.invalidate() }
     }
+
+    /** Khung cua so cua mot bubble tren MAN HINH (da bu status bar). */
+    private fun onScreen(r: Box) = Box(r.x1, r.y1 + offsetY, r.x2, r.y2 + offsetY)
+
+    private fun overlaps(a: Box, b: Box) =
+        a.x1 < b.x2 && a.x2 > b.x1 && a.y1 < b.y2 && a.y2 > b.y1
+
+    /**
+     * Khung MAN HINH cua moi cua so ban dich dang mo — ke ca lop de thu cong.
+     *
+     * Bo canh trang phai bo qua chung: day la nhung cho CHINH APP ve len, nen
+     * chung khac anh goc la le duong nhien. Ban truoc chi bo qua danh sach
+     * bubble do day chuyen sinh ra, nen moi lop de thu cong deu bi ket luan la
+     * "nguoi dung sang trang" va xoa sach ban dich dang co (F76).
+     */
+    fun paneBoxesOnScreen(): List<Box> =
+        panes.keys.mapNotNull { id -> bubbles[id] }
+            .map { onScreen(BubbleRenderer.drawnRect(it)) }
 
     private fun clearPanes() {
         stopPeek()

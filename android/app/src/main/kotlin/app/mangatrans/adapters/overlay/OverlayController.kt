@@ -46,7 +46,25 @@ class OverlayController(
      * doi -> xoa ca trang. Tha tay ra thi ban dich mat han. Hai story tu danh
      * nhau, va ca hai deu "dung" neu xet rieng.
      */
-    val selfChanging = java.util.concurrent.atomic.AtomicBoolean(false)
+    /**
+     * ⚠️ DEM CHONG chu khong phai mot co bat/tat.
+     *
+     * Ban truoc la `AtomicBoolean`, va no hong ngay khi hai cho cung giu: vi du
+     * panel "chu vua lay" dang mo (giu) thi nguoi dung bam dich mot cum, buoc
+     * do lai chup man hinh (giu roi NHA) — cu nha cua cai trong lam mat luon
+     * cai giu cua cai ngoai, va bo canh trang chay tiep giua luc panel con che
+     * kin man hinh. Dem chong thi chi khi nguoi cuoi cung nha, co moi ha.
+     */
+    private val selfDepth = java.util.concurrent.atomic.AtomicInteger(0)
+
+    /** App co dang tu lam man hinh doi khong. */
+    val isSelfChanging: Boolean get() = selfDepth.get() > 0
+
+    /** Giu: bao "tu day den luc nha, man hinh doi la do CHINH TA". */
+    fun holdSelfChange() { selfDepth.incrementAndGet() }
+
+    /** Nha. Khong bao gio tut xuong duoi 0 — nha thua thi bo qua. */
+    fun releaseSelfChange() { selfDepth.updateAndGet { if (it > 0) it - 1 else 0 } }
 
     private val scope = kotlinx.coroutines.CoroutineScope(
         kotlinx.coroutines.SupervisorJob() + Dispatchers.Main
@@ -63,14 +81,29 @@ class OverlayController(
      */
     val translation = TranslationOverlay(
         ctx, wm,
-        onPeek = { peeking -> selfChanging.set(peeking) },
+        onPeek = { peeking -> if (peeking) holdSelfChange() else releaseSelfChange() },
         onEditBubble = { id -> onEditBubble(id) },
+        iconBoxOnScreen = { icon.boxOnScreen() },
+        raiseIcon = { icon.raise() },
     )
 
     fun show() = icon.show()
 
     /** Khung icon tren man hinh — bo canh trang bo qua vung nay. */
     fun iconBox() = icon.boxOnScreen()
+
+    /**
+     * MOI cho tren man hinh do chinh app ve len: icon me, ba icon con, va tung
+     * cua so ban dich (ke ca lop de thu cong).
+     *
+     * Day la nguon su that DUY NHAT cho bo canh trang. Truoc day noi goi tu
+     * ghep danh sach nay, va no thieu dung nhung thu hay doi nhat — nen mo mot
+     * cai menu cua chinh app cung du lam app tuong nguoi dung sang trang.
+     *
+     * Toa do MAN HINH; nguoi goi tu tru status bar de ve toa do anh chup.
+     */
+    fun appOwnedBoxesOnScreen(): List<app.mangatrans.domain.Box> =
+        icon.boxesOnScreen() + translation.paneBoxesOnScreen()
 
     /** Xem `FloatingIcon.raise` — goi sau khi ve xong ca trang. */
     suspend fun raiseIcon() = withContext(Dispatchers.Main) { icon.raise() }
@@ -93,7 +126,7 @@ class OverlayController(
      * nhanh loi quen goi la nguoi dung mat sach giao dien ma khong hieu vi sao.
      */
     override suspend fun <T> hiddenForCapture(block: suspend () -> T): T {
-        selfChanging.set(true)
+        holdSelfChange()
         withContext(Dispatchers.Main) {
             icon.setVisibleForCapture(false)
             translation.setVisibleForCapture(false)
@@ -101,11 +134,18 @@ class OverlayController(
         try {
             return block()
         } finally {
-            withContext(Dispatchers.Main) {
-                icon.setVisibleForCapture(true)
-                translation.setVisibleForCapture(true)
+            // ⚠️ `NonCancellable`: khi nguoi dung cham de DUNG giua luc dang
+            // chup, coroutine bi huy va `withContext` thuong se **khong chay
+            // than ham** — lop phu nam nguyen o INVISIBLE va icon bien mat khoi
+            // man hinh cho toi lan chup sau. Da thay that: icon khong con, cham
+            // vao cho cu khong co gi xay ra.
+            kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+                withContext(Dispatchers.Main) {
+                    icon.setVisibleForCapture(true)
+                    translation.setVisibleForCapture(true)
+                }
             }
-            selfChanging.set(false)
+            releaseSelfChange()
         }
     }
 
@@ -126,14 +166,20 @@ class OverlayController(
      * lat trang that.
      */
     suspend fun addBubble(b: Bubble) = withContext(Dispatchers.Main) {
-        selfChanging.set(true)
+        holdSelfChange()
         translation.add(b)
         scope.launch {
             delay(SELF_SETTLE_MS)
-            selfChanging.set(false)
+            releaseSelfChange()
         }
         Unit
     }
+
+    /**
+     * Lop de THU CONG (`⌖`). Khac `addBubble` o cho no khong den tu day chuyen,
+     * nhung ve mat hien thi va canh trang thi y het — nen di chung mot duong.
+     */
+    suspend fun addManual(b: Bubble) = addBubble(b)
 
     suspend fun retract(ids: Collection<Int>) =
         withContext(Dispatchers.Main) { translation.retract(ids) }
