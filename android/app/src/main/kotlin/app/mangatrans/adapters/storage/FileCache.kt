@@ -74,6 +74,12 @@ class FileCache(
             File(dir, "$contentKey.json").writeText(
                 JSONObject().apply {
                     put("boxSig", boxSignature(boxes))
+                    // ⚠️ Moc DICH, khong phai moc doc. `get()` co
+                    // `setLastModified` de phuc vu LRU, nen `lastModified` cua
+                    // file la "lan cuoi DOC", khong phai "lan dich". Mo lai mot
+                    // trang cu la mtime cua no nhay len dau danh sach.
+                    // `forgetRecent` can dung moc dich, nen phai luu rieng.
+                    put("at", System.currentTimeMillis())
                     put("bubbles", arr)
                 }.toString()
             )
@@ -119,6 +125,47 @@ class FileCache(
         n
     }
 
+    /**
+     * Quen ket qua dich cua **N trang dich gan day nhat**.
+     *
+     * Vi sao can, khi da co nut xoa sach: hai nut tra loi hai cau hoi khac
+     * nhau. "Xoa sach" la de ap mot muc tu dien moi len ca thu vien. Con cai
+     * nay la de xu ly **vua doc xong may trang thay dich khong on** — xoa sach
+     * hang tram trang khong lien quan chi de dich lai ba trang la qua dat, moi
+     * trang dich moi ton 1-2 phut.
+     *
+     * Xep theo moc DICH (`at`), khong phai `lastModified`: xem ghi chu o `put`.
+     * Muc cu tao truoc khi co truong `at` thi lui ve `lastModified` — sai lech
+     * duy nhat o nhung muc do, va chung deu la muc cu nhat nen it khi lot vao
+     * top N.
+     *
+     * @return so trang thuc su xoa duoc. Co the nho hon `n` neu cache it hon.
+     */
+    suspend fun forgetRecent(n: Int): Int = withContext(Dispatchers.IO) {
+        if (n <= 0) return@withContext 0
+        val stamped = dir.listFiles().orEmpty()
+            .filter { it.isFile }
+            .map { it to translatedAt(it) }
+        newestFirst(stamped, n).count { it.delete() }
+    }
+
+    /** So trang dang nho. De man hinh Cai dat noi con so that, khong uoc chung. */
+    suspend fun pageCount(): Int = withContext(Dispatchers.IO) {
+        dir.listFiles().orEmpty().count { it.isFile }
+    }
+
+    /**
+     * Moc DICH cua mot muc cache. Lui ve `lastModified` cho muc cu chua co `at`.
+     *
+     * `optLong("at", 0)` tra 0 khi thieu truong — va 0 cung la gia tri `org.json`
+     * tra ve trong unit test (android.jar stub), nen nhanh lui nay con la duong
+     * chay duy nhat khi test tren JVM.
+     */
+    private fun translatedAt(f: File): Long {
+        val at = runCatching { JSONObject(f.readText()).optLong("at", 0L) }.getOrDefault(0L)
+        return if (at > 0L) at else f.lastModified()
+    }
+
     /** FR-062 — day thi don ban cu nhat. */
     private fun evictIfNeeded() {
         val files = dir.listFiles()?.sortedBy { it.lastModified() } ?: return
@@ -133,6 +180,22 @@ class FileCache(
     private fun boxSignature(boxes: List<Box>): String =
         sha1(boxes.joinToString(";") { "${it.x1},${it.y1},${it.x2},${it.y2}" })
 }
+
+/**
+ * Chon `n` muc moi nhat theo moc thoi gian — tach rieng khoi `FileCache` de
+ * **test duoc tren JVM**. Ban than `FileCache` doc JSON, ma `org.json` trong
+ * unit test la stub cua android.jar (tra ve gia tri mac dinh), nen logic chon
+ * nam trong do thi khong kiem duoc bang test thuong.
+ *
+ * Deterministic khi trung moc: chot thu tu theo ten file. Khong co rang buoc
+ * nay thi hai muc cung mili giay se ra thu tu tuy he dieu hanh, va test se do
+ * nhap nhay.
+ */
+internal fun newestFirst(entries: List<Pair<File, Long>>, n: Int): List<File> =
+    entries
+        .sortedWith(compareByDescending<Pair<File, Long>> { it.second }.thenBy { it.first.name })
+        .take(n)
+        .map { it.first }
 
 /**
  * AD-18 — HAI hash, hai vai, yeu cau NGUOC nhau. Khong duoc dung lan.

@@ -79,6 +79,14 @@ class SetupActivity : AppCompatActivity() {
             this, "Dịch lại các trang đã dịch", Ui.C.neutral, Ui.Weight.Tonal,
         ) { confirmClearPageCache() }
 
+        // Hai nut, hai cau hoi khac nhau — dung gop lam mot. Nut tren la "ap
+        // mot nghia moi len CA thu vien". Nut nay la "may trang vua doc dich
+        // khong on". Chi co nut tren thi de xu ly ba trang phai xoa hang tram
+        // trang khong lien quan, moi trang dich lai ton 1-2 phut.
+        val recentBtn = Ui.button(
+            this, "Chỉ xoá vài trang vừa dịch", Ui.C.neutral, Ui.Weight.Quiet,
+        ) { confirmForgetRecent() }
+
         geminiBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
 
         setContentView(ScrollView(this).apply {
@@ -104,6 +112,7 @@ class SetupActivity : AppCompatActivity() {
                     13f,
                 ))
                 addView(redoBtn)
+                addView(recentBtn)
 
                 addView(Ui.heading(this@SetupActivity, "Tra nghĩa bằng Gemini"))
                 addView(geminiBox)
@@ -570,6 +579,56 @@ class SetupActivity : AppCompatActivity() {
                 }
             }
             .show()
+    }
+
+    /**
+     * Xoa ban dich cua N trang DICH gan day nhat.
+     *
+     * Nua con lai cua cau hoi "xoa co chon loc" ma nguoi dung dat: truoc day
+     * chi lam duoc ve **noi dung** (quen nhung trang co chua mot cum tu dien,
+     * `forgetContaining`). Con truong hop thuong gap hon — *vua doc may trang
+     * thay dich khong on* — thi khong co duong nao ngoai xoa sach.
+     *
+     * "Gan day" tinh theo moc DICH chu khong phai moc doc; xem ghi chu trong
+     * `FileCache.put`.
+     */
+    private fun confirmForgetRecent() {
+        lifecycleScope.launch {
+            val cache = app.mangatrans.adapters.storage.FileCache(
+                java.io.File(cacheDir, "pages")
+            )
+            val total = runCatching { cache.pageCount() }.getOrDefault(0)
+            if (total == 0) {
+                Toast.makeText(
+                    this@SetupActivity, "Chưa có trang nào được lưu.", Toast.LENGTH_SHORT,
+                ).show()
+                return@launch
+            }
+            // Chi hien lua chon thuc su co y nghia: nhieu hon so trang dang nho
+            // thi chon do bang "xoa sach", ma xoa sach da co nut rieng.
+            val choices = listOf(1, 3, 10, 30).filter { it < total } + listOf(total)
+            val labels = choices.map {
+                if (it == total) "Tất cả $total trang" else "$it trang gần nhất"
+            }.toTypedArray()
+
+            AlertDialog.Builder(this@SetupActivity)
+                .setTitle("Xoá bản dịch của mấy trang?")
+                .setItems(labels) { _, which ->
+                    val n = choices[which]
+                    lifecycleScope.launch {
+                        val gone = runCatching { cache.forgetRecent(n) }.getOrDefault(0)
+                        Toast.makeText(
+                            this@SetupActivity,
+                            if (gone == 0) "Không xoá được trang nào."
+                            else "Đã xoá $gone trang. Mở lại trang nào thì trang đó dịch mới " +
+                                "(mỗi trang 1–2 phút).",
+                            Toast.LENGTH_LONG,
+                        ).show()
+                    }
+                }
+                .setNegativeButton("Để sau", null)
+                .show()
+        }
     }
 
     private fun confirmDelete() {
