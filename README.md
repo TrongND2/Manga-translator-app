@@ -108,6 +108,23 @@ Trong màn hình Từ điển riêng có **⬇ Nhập từ file** và **⬆ Xu�
 
 Cả hai đi qua trình chọn file của hệ thống nên **app không cần quyền bộ nhớ nào**.
 
+## 🗑 Dịch lại chỉ mấy trang vừa đọc
+
+App nhớ kết quả các trang đã dịch để mở lại là hiện ngay. Nhưng khi bạn vừa đọc vài trang thấy dịch chưa ổn, trước đây chỉ có hai lựa chọn: giữ hết, hoặc xoá sạch cả thư viện — mà mỗi trang dịch lại tốn 1–2 phút.
+
+Trong **Cài đặt / gói mô hình**, mục *Bản dịch đã lưu*, giờ có hai nút cho hai tình huống khác nhau:
+
+| | Dùng khi |
+|---|---|
+| **Dịch lại các trang đã dịch** | vừa sửa từ điển, muốn áp nghĩa mới cho **cả** thư viện |
+| **Chỉ xoá vài trang vừa dịch** | mấy trang vừa đọc dịch chưa ổn |
+
+Nút thứ hai cho chọn **1 / 3 / 10 / 30 trang gần nhất, hoặc tất cả**. Xoá xong, mở lại trang nào thì trang đó dịch mới.
+
+"Gần nhất" tính theo lúc **dịch**, không phải lúc **đọc** — nên mở lại một trang cũ không đẩy nó vào diện bị xoá.
+
+> Còn một cách quên có chọn lọc nữa, theo **nội dung**: thêm một mục từ điển thì app chỉ quên đúng những trang có chứa cụm đó.
+
 ## Hai nút dịch, ở cả ba chỗ
 
 Ô sửa bóng thoại, màn khoanh lấy chữ, và ô thêm mục ở Từ điển riêng đều có hai nút:
