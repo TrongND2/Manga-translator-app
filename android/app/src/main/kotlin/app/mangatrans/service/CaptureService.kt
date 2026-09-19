@@ -551,7 +551,24 @@ class CaptureService : Service() {
                     // AD-9 — ca trang tro ve nguyen ban.
                     is PageEvent.PageRejected -> { ov.clearPage(); drawn = 0 }
 
-                    is PageEvent.Done -> { currentPage = ev.job; dumpForDiagnosis(ev.job) }
+                    is PageEvent.Done -> {
+                        currentPage = ev.job
+                        dumpForDiagnosis(ev.job)
+                        // ⚠️ `Done` KHONG con dong nghia voi "dich du ca trang".
+                        // Tu F57, mot dot nhan thieu bong chi giu lai phan dich
+                        // duoc chu khong tu choi ca trang nua -- dung, nhung khi
+                        // do trang thieu nhin y het trang hoan hao. Da gap that:
+                        // 15 o dua di dich, 7 o co ket qua, app bao xong binh
+                        // thuong va khong ai biet.
+                        //
+                        // Chi ghi SO DEM, khong ghi chu da OCR ra logcat.
+                        val thieu = ev.job.untranslated.size
+                        if (thieu > 0) {
+                            val tong = ev.job.translatable.size
+                            Log.i(TAG, "dich thieu: ${tong - thieu}/$tong bong")
+                            toast("Trang này mới dịch được ${tong - thieu}/$tong bóng")
+                        }
+                    }
 
                     // Hong ca luot — khac han ket qua tung bubble. Noi ro ly do
                     // bang tieng nguoi (Story 3.8), khong hien ma loi.

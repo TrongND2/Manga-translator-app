@@ -27,6 +27,22 @@ data class PageJob(
     val translatable: List<Bubble>
         get() = bubbles.filter { it.state == BubbleState.Accepted && it.ja.isNotBlank() }
 
+    /**
+     * Bong da dua di dich nhung KHONG nhan duoc ban dich — giu nguyen ban
+     * tieng Nhat theo AD-9.
+     *
+     * Vi sao can mot ten rieng cho no: tu F57, mot dot dich nhan thieu bong
+     * KHONG con lam ca trang bi tu choi nua (giu 10 ban dich dung con hon vut
+     * sach vi mot muc hong). Dung, nhung doi lai `Done` cua mot trang thieu
+     * nhin y het `Done` cua mot trang hoan hao — va do la cach mot dot hong
+     * **di qua hoan toan im lang**: da gap that, 15 o dua di dich, 7 o co ket
+     * qua, app bao xong binh thuong.
+     *
+     * Co cho nay thi nguoi goi con biet ma noi ra.
+     */
+    val untranslated: List<Bubble>
+        get() = translatable.filter { it.vi == null }
+
     fun withBubbles(next: List<Bubble>): PageJob = copy(bubbles = next)
 }
 
