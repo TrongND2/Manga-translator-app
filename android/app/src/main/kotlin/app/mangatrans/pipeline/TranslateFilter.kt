@@ -66,6 +66,17 @@ class TranslateFilter(
          * tra du. Lay 10 cho co bien.
          */
         const val MAX_PER_CALL = 10
+
+        /** Ngan hon chung nay lan nguyen ban thi coi la ban dich bi cut. */
+        const val MIN_LEN_RATIO = 0.5
+
+        /**
+         * Nguyen ban ngan hon chung nay ky tu thi KHONG xet do dai.
+         *
+         * Cam than va tieng dong (「え!?」「ぅぁあ」) von dich ra ngan bang nguyen
+         * ban — do la dung, khong phai cut.
+         */
+        const val MIN_JA_LEN = 8
     }
 
     /**
@@ -91,10 +102,93 @@ class TranslateFilter(
      * khi do mo hinh cung se khong khop duoc chuoi ay — nen giu lai cung khong
      * cuu duoc gi, chi ton cho.
      */
+    /**
+     * Don not chu Nhat con sot lai trong ban dich.
+     *
+     * Prompt da dan "Không để sót chữ Nhật nào" nhung mo hinh van sot — do tren
+     * ba trang that (F81):
+     * ```
+     *   おぁぁッ                  ->  "ÁÁッ"
+     *   あぁあ♡きたぁッ♡         ->  "Đến rồiッ♡"
+     *   ナマの粘膜擦れあってるッッ ->  "Niêm mạc ... cọ xát nhauッッ"
+     * ```
+     * 3 tren 7 bong cua mot trang. Ky tu hay sot nhat la 「ッ」 — trong manga no
+     * chi la dau ngat hoi cuoi cau, khong mang nghia, nen bo di la dung.
+     *
+     * ⚠️ CHI bo nhung doan chu Nhat **dai toi da 2 ky tu**.
+     *
+     * Day la cho de lam hong nhat, nen phai dat cho ro: mot doan dai HON hai ky
+     * tu thi rat co the la **mot cai ten hay mot cum mo hinh khong dich noi** —
+     * cat no di la xoa mat thong tin va giau luon cai loi. Do that o `#29`:
+     * mo hinh tung de nguyen ten `アズ`; neu ta cat bua thi cau thanh "cái mông
+     * của" cut ngu, con te hon la de nguyen.
+     *
+     * Con doan mot–hai ky tu dinh vao duoi mot tu tieng Viet thi gan nhu chac
+     * chan la rac: 「ッ」 la dau ngat hoi, 「ー」 la dau keo dai — khong mang nghia.
+     *
+     * Giu nguyen ♡ ♪ ★ (prompt yeu cau giu), giu chu Viet, chu so, dau cau.
+     * Bo xong ma khong con chu nao thi tra lai nguyen van — dung tu tay tao ra
+     * mot o trong (AD-9).
+     */
+    private fun stripJapanese(vi: String): String {
+        if (vi.none { it.isJapaneseScript() }) return vi
+        val cleaned = Regex("[\\u3040-\\u309F\\u30A0-\\u30FF\\u4E00-\\u9FFF\\uFF66-\\uFF9F]{1,2}")
+            .replace(vi) { m ->
+                // Doan dai hon 2 ky tu da bi regex tach thanh nhieu manh 2 ky
+                // tu; kiem lai bang cach nhin hai ben — cham chu Nhat thi giu.
+                val i = m.range.first
+                val j = m.range.last
+                val leftJa = i > 0 && vi[i - 1].isJapaneseScript()
+                val rightJa = j + 1 < vi.length && vi[j + 1].isJapaneseScript()
+                if (leftJa || rightJa) m.value else ""
+            }
+            .replace(Regex("[ \\t]{2,}"), " ")
+            .trim()
+        return if (cleaned.any { it.isLetterOrDigit() }) cleaned else vi
+    }
+
+    /** Hiragana, katakana (ca ban nho) va kanji. */
+    private fun Char.isJapaneseScript(): Boolean =
+        this in '぀'..'ゟ' ||   // hiragana
+            this in '゠'..'ヿ' ||   // katakana
+            this in '一'..'鿿' ||   // kanji
+            this in 'ｦ'..'ﾟ'      // katakana nua rong
+
+    /**
+     * Ban dich co bi cut khong.
+     *
+     * Hai dieu kien, va dieu kien thu hai moi la cai giu cho phep thu nay khong
+     * bat oan:
+     *
+     *   1. ngan hon `MIN_LEN_RATIO` lan nguyen ban;
+     *   2. **nguyen ban phai du dai** (`MIN_JA_LEN`). Cam than 「え!?」 dich
+     *      thanh "Ể!?" co ty le dung 1,00 — hoan toan binh thuong. Bo dieu kien
+     *      nay thi moi cau cam than deu bi bo oan.
+     *
+     * Do tren mot trang 15 bong (F79): bong bi cut nam o **0,24**, 14 bong con
+     * lai deu **>= 1,00**. Lay 0,5 thi cach cai cut hai lan va cach cai binh
+     * thuong thap nhat hai lan.
+     */
+    private fun looksTruncated(ja: String, vi: String): Boolean {
+        val j = ja.trim()
+        val v = vi.trim()
+        if (j.length < MIN_JA_LEN) return false
+        return v.length < j.length * MIN_LEN_RATIO
+    }
+
     private fun relevant(all: List<GlossaryEntry>, ja: Collection<String>): List<GlossaryEntry> {
         if (all.isEmpty()) return all
-        val page = ja.joinToString("\n")
-        return all.filter { it.surface.isNotBlank() && page.contains(it.surface) }
+        // ⚠️ Chuan hoa CA HAI phia truoc khi so.
+        //
+        // OCR tung tra ve `ザ-メン` (gach noi ASCII) thay vi `ザーメン`, va muc
+        // tu dien nguoi dung go tay thi lai dung `ー` that. Hai chuoi trong
+        // giong nhau ma khong bao gio khop — muc tu dien nam do vo dung ma
+        // khong ai biet (F84). `OcrFilter` da sua phia chu doc ra; sua not phia
+        // tu dien de nhung muc go nham dau gach cung van khop.
+        val page = fixProlongedMark(ja.joinToString("\n"))
+        return all.filter {
+            it.surface.isNotBlank() && page.contains(fixProlongedMark(it.surface))
+        }
     }
 
     fun stream(job: PageJob): Flow<PageEvent> = flow {
@@ -187,8 +281,39 @@ class TranslateFilter(
                     return@collect
                 }
 
+                // ⚠️ Cong jaEcho KHONG bat duoc ban dich bi cut.
+                //
+                // No chi doi mo hinh cheo lai hai ky tu dau cua nguyen ban —
+                // cheo dung thi coi nhu "gan dung bong". Mo hinh van co the
+                // cheo dung roi **bo di gan het cau**.
+                //
+                // Do that tren mot trang 15 bong (F79):
+                // ```
+                //   ty le do dai VI/JA
+                //   0.24  うおお出る!ホントにいいんだな!?  ->  "Ước!"   <- cut
+                //   1.00  え!?                             ->  "Ể!?"
+                //   ...
+                //   3.20  パパだけ♡                        ->  "Chỉ là bố thôi ♡"
+                // ```
+                // Ca 14 bong con lai deu >= 1,00; chi mot bong cut nam o 0,24.
+                //
+                // Khong nhan thi bong do roi vao duong "mo hinh dung som" da co
+                // san: het luot thu ma van thieu thi giu nguyen chu Nhat (AD-9).
+                // Doc mot bong tieng Nhat van hon doc mot cau tieng Viet sai ma
+                // khong co dau hieu gi bao la sai.
+                if (looksTruncated(truth.getValue(t.id), t.vi)) {
+                    Log.i(TAG, "bo bubble ${t.id}: ban dich cut bat thuong")
+                    return@collect
+                }
+
+                // Don not chu Nhat con sot — xem `stripJapanese`. Lam SAU cong
+                // do dai: cat bo ky tu roi moi do thi mot ban dich vua du dai
+                // co the tut xuong duoi nguong va bi bo oan.
+                val vi = stripJapanese(t.vi)
+                if (vi != t.vi) Log.i(TAG, "bubble ${t.id}: da don chu Nhat sot lai")
+
                 val src = job.bubbles.first { it.id == t.id }
-                val done = src.copy(vi = t.vi, speaker = t.speaker, state = BubbleState.Accepted)
+                val done = src.copy(vi = vi, speaker = t.speaker, state = BubbleState.Accepted)
                 accepted[t.id] = done
                 drawn.add(t.id)
                 emit(PageEvent.BubbleReady(done))
@@ -242,6 +367,40 @@ class TranslateFilter(
                     " (lan ${attempt + 1}/${cfg.translateRetries + 1})" +
                     if (reason != null) " — $reason" else " — mo hinh dung som",
             )
+
+            // ⚠️ Luot thu lai chi dang chay khi PROMPT SE KHAC.
+            //
+            // Do duoc hom nay: mo hinh **tat dinh** — chay hai lan cung mot
+            // prompt cho **15/15 bong giong het tung chu** (F80). Ma luot thu
+            // lai luon dung `continuing = false`: mo phien moi, gui lai dung
+            // prompt day du. Nen neu luot vua roi CUNG da la `continuing =
+            // false` (dot dau cua trang), thi prompt sap gui y het prompt vua
+            // gui — va ket qua se y het.
+            //
+            // Tuc la luot thu lai do **chac chan khong cuu duoc gi**, chi ton
+            // them mot luot sinh chu day du (~40-60 giay tren M52). Truoc day
+            // no van chay, va nguoi dung ngoi cho gap doi thoi gian de nhan lai
+            // dung cai ket qua cu.
+            //
+            // Dot thu hai tro di thi khac: luot dau dung lai phien cu
+            // (`buildFollowUp`, prompt ngan), luot thu lai mo phien moi voi
+            // prompt day du — hai prompt khac nhau that, nen van dang thu.
+            val justUsedFreshSession = !(continuing && attempt == 0)
+            val retryWouldRepeat = justUsedFreshSession
+            if (retryWouldRepeat && attempt < cfg.translateRetries) {
+                Log.i(TAG, "bo qua luot thu lai: prompt se y het luot vua roi")
+                if (accepted.isNotEmpty()) {
+                    if (sink != null) { sink.putAll(accepted); return }
+                    emit(PageEvent.Done(
+                        job.withBubbles(job.bubbles.map { accepted[it.id] ?: it }), 0))
+                    return
+                }
+                // Khong nhan duoc bong nao: van phai bao hong theo duong cu.
+                val why = reason ?: "mo hinh dung som"
+                if (drawn.isNotEmpty()) emit(PageEvent.Retracted(drawn.toList(), why))
+                if (sink == null) emit(PageEvent.PageRejected(why))
+                return
+            }
 
             val lastTry = attempt == cfg.translateRetries
             if (lastTry && accepted.isNotEmpty()) {

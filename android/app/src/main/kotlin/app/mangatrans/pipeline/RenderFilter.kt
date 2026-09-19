@@ -83,13 +83,37 @@ object BubbleRenderer {
      */
     private const val PAD_RATIO = 0.08
 
+    /**
+     * Noi them TOI DA bao nhieu pixel — **chi ap cho vung KHONG co vo bong**.
+     *
+     * Vi sao can tran nay: phan noi them sinh ra de hap thu sai so cua detector,
+     * ma sai so do tinh bang **vai pixel**, khong tinh theo phan tram. Lay 8%
+     * cua mot hop cao 454 px la noi ra **36 px** moi phia — gap nhieu lan sai so
+     * that.
+     *
+     * Khi CO vo bong thi khong sao: `padded` da kep phan noi them nam trong vo.
+     * Khong co vo thi khong co gi kep, va do chinh la truong hop do duoc tren
+     * may (F78): bong thoai hinh **bac thang**, app to mot hinh chu nhat bao
+     * ngoai, va mang trang **tran len ca ranh den lan tranh** o goc tren-trai.
+     *
+     * Kep lai con 8 px thi phan tran giam tu 36 px xuong 8 px, ma van phu kin
+     * hop chu — vi hop chu von da om het net chu.
+     */
+    private const val PAD_MAX_PX_NO_SHELL = 8
+
     /** Ban kinh bo goc cua o nen, tinh theo canh ngan cua vo bong. */
     private const val CORNER_RATIO = 0.30f
 
     private fun padded(b: Box, shell: Box?): Box {
-        val px = (b.width * PAD_RATIO).toInt().coerceAtLeast(2)
-        val py = (b.height * PAD_RATIO).toInt().coerceAtLeast(2)
-        if (shell == null) return Box(b.x1 - px, b.y1 - py, b.x2 + px, b.y2 + py)
+        var px = (b.width * PAD_RATIO).toInt().coerceAtLeast(2)
+        var py = (b.height * PAD_RATIO).toInt().coerceAtLeast(2)
+        if (shell == null) {
+            // Khong co vo bong => khong co gi kep phan noi them, va moi pixel
+            // noi ra la mot pixel TRANH bi xoa. Xem `PAD_MAX_PX_NO_SHELL`.
+            px = px.coerceAtMost(PAD_MAX_PX_NO_SHELL)
+            py = py.coerceAtMost(PAD_MAX_PX_NO_SHELL)
+            return Box(b.x1 - px, b.y1 - py, b.x2 + px, b.y2 + py)
+        }
 
         // Kep phan NOI THEM vao trong vo bong, nhung KHONG BAO GIO cat vao
         // chinh hop chu.

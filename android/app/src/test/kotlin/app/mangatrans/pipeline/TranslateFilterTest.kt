@@ -40,20 +40,32 @@ class TranslateFilterTest {
 
     /** Translator gia — tra ve dung nhung gi test muon. */
     private class Fake(val out: List<BubbleTranslation>) : Translator {
-        override fun translate(page: PageJob, glossary: List<GlossaryEntry>): Flow<BubbleTranslation> =
-            flow { out.forEach { emit(it) } }
+        override fun translate(
+            page: PageJob,
+            glossary: List<GlossaryEntry>,
+            continuing: Boolean,
+        ): Flow<BubbleTranslation> = flow { out.forEach { emit(it) } }
         override suspend fun warmUp() {}
         override suspend fun release() {}
         override val isWarm = true
     }
 
+    /**
+     * ⚠️ Ban dich gia phai DAI ngang ban dich that.
+     *
+     * Truoc day cho nay la `"dich $i"` (6 ky tu) cho nhung cau Nhat dai 16-19
+     * ky tu. Con so do khong giong bat cu ban dich that nao: do tren 92 cap
+     * JA/VI that lay tu may, ty le do dai VI/JA thap nhat (voi JA >= 8 ky tu)
+     * la **1,33**, con ban dich bi cut that su nam o **0,24**. Cong chan ban
+     * dich cut (`looksTruncated`) vi the loai dung nhung chuoi gia nay.
+     */
     private fun run(out: List<BubbleTranslation>) = TranslateFilter(Fake(out), { emptyList() })
 
     private fun echo(s: String) = EchoGate.normalize(s, 2)
 
     @Test
     fun `dich dung thi phat du bubble va Done`() = runTest {
-        val good = ja.mapIndexed { i, s -> BubbleTranslation(i, echo(s), "dich $i") }
+        val good = ja.mapIndexed { i, s -> BubbleTranslation(i, echo(s), "ban dich tieng Viet cua bubble $i") }
         val ev = run(good).stream(job()).toList()
 
         assertEquals(4, ev.filterIsInstance<PageEvent.BubbleReady>().size)
@@ -67,7 +79,7 @@ class TranslateFilterTest {
         // bubble 0..1 dung, tu bubble 2 tro di lech mot o.
         val shifted = ja.indices.map { i ->
             val src = if (i < 2) ja[i] else ja.getOrElse(i + 1) { ja[i] }
-            BubbleTranslation(i, echo(src), "dich $i")
+            BubbleTranslation(i, echo(src), "ban dich tieng Viet cua bubble $i")
         }
         val ev = run(shifted).stream(job()).toList()
 
@@ -84,7 +96,7 @@ class TranslateFilterTest {
     fun `lech ngay bubble dau thi khong co gi de go`() = runTest {
         // Chua ve gi thi khong phat Retracted — dung, khong phai thieu sot.
         val shifted = ja.indices.map { i ->
-            BubbleTranslation(i, echo(ja.getOrElse(i + 1) { ja[i] }), "dich $i")
+            BubbleTranslation(i, echo(ja.getOrElse(i + 1) { ja[i] }), "ban dich tieng Viet cua bubble $i")
         }
         val ev = run(shifted).stream(job()).toList()
         assertEquals("khong ve gi thi khong go gi",
@@ -95,7 +107,7 @@ class TranslateFilterTest {
     @Test
     fun `id thua thi tu choi`() = runTest {
         // Da gap that o tubaki_025: model tra 13 bubble trong khi vao 12 (F19).
-        val extra = ja.mapIndexed { i, s -> BubbleTranslation(i, echo(s), "dich $i") } +
+        val extra = ja.mapIndexed { i, s -> BubbleTranslation(i, echo(s), "ban dich tieng Viet cua bubble $i") } +
             BubbleTranslation(99, "XX", "bubble ma")
         val ev = run(extra).stream(job()).toList()
         assertEquals(1, ev.filterIsInstance<PageEvent.PageRejected>().size)
@@ -103,7 +115,7 @@ class TranslateFilterTest {
 
     @Test
     fun `thieu bubble thi khong bao Done`() = runTest {
-        val short = ja.dropLast(2).mapIndexed { i, s -> BubbleTranslation(i, echo(s), "dich $i") }
+        val short = ja.dropLast(2).mapIndexed { i, s -> BubbleTranslation(i, echo(s), "ban dich tieng Viet cua bubble $i") }
         val ev = run(short).stream(job()).toList()
         assertEquals(0, ev.filterIsInstance<PageEvent.Done>().size)
         assertEquals(1, ev.filterIsInstance<PageEvent.PageRejected>().size)
@@ -113,10 +125,12 @@ class TranslateFilterTest {
     fun `nhieu ky tu trong echo van duoc chap nhan`() = runTest {
         // Bao dong gia THAT da gap (F14): model doi tro tu, bo dau gach dau cau.
         val noisy = listOf(
-            BubbleTranslation(0, echo("俺ア"), "a"),       // ァ -> ア, sai 1 ky tu
-            BubbleTranslation(1, echo("では"), "b"),
-            BubbleTranslation(2, echo("他の"), "c"),
-            BubbleTranslation(3, echo("瑠璃"), "d"),
+            // ⚠️ Ban dich phai du dai — xem ghi chu o `run`. Phep kiem nay noi
+            // ve cong jaEcho, khong phai ve do dai, nen dung chuoi that.
+            BubbleTranslation(0, echo("俺ア"), "ban dich thu nhat cua trang"),  // ァ -> ア, sai 1 ky tu
+            BubbleTranslation(1, echo("では"), "ban dich thu hai cua trang"),
+            BubbleTranslation(2, echo("他の"), "ban dich thu ba cua trang"),
+            BubbleTranslation(3, echo("瑠璃"), "ban dich thu tu cua trang"),
         )
         val ev = run(noisy).stream(job()).toList()
         assertEquals("sai mot ky tu khong duoc coi la lech",
@@ -126,7 +140,7 @@ class TranslateFilterTest {
     @Test
     fun `bubble ready phat ra truoc khi Done`() = runTest {
         // AD-13: phai phat dan, khong doi den cuoi moi phat mot cuc.
-        val good = ja.mapIndexed { i, s -> BubbleTranslation(i, echo(s), "dich $i") }
+        val good = ja.mapIndexed { i, s -> BubbleTranslation(i, echo(s), "ban dich tieng Viet cua bubble $i") }
         val ev = run(good).stream(job()).toList()
         val firstReady = ev.indexOfFirst { it is PageEvent.BubbleReady }
         val done = ev.indexOfFirst { it is PageEvent.Done }

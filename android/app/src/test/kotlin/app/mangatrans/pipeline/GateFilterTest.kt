@@ -7,6 +7,7 @@ import app.mangatrans.domain.PageJob
 import app.mangatrans.domain.RegionKind
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -64,11 +65,48 @@ class GateFilterTest {
         assertEquals(BubbleState.Suspect, out.bubbles.first { it.id == 1 }.state)
     }
 
+    /**
+     * ⚠️ Phep kiem nay DA DAO CHIEU so voi ban dau, va co chu y.
+     *
+     * Ban dau no doi "vo bong rong thi khong bao gio duoc OCR" — hop ly khi vo
+     * rong nghia la detector bat nham mot manh tranh. Nhung commit `4376296`
+     * ("bong thoai bi bo qua") do duoc truong hop nguoc lai va thuong gap hon:
+     * bong thoai CO chu that, ma detector chi bat duoc vo, khong bat duoc hop
+     * chu ben trong. Bo luon thi ca bong do khong bao gio duoc dich.
+     *
+     * Nen luat hien tai la: vo rong ma **du diem tin cay** thi van cuu — OCR
+     * phan trong ruot (da thu vao `ORPHAN_INSET` de khong doc trung vien).
+     * Test cu nam lai tu truoc commit do va chua duoc cap nhat theo.
+     */
     @Test
-    fun `vo bong rong khong bao gio duoc OCR`() = runTest {
+    fun `vo bong rong du diem tin cay thi duoc cuu de OCR`() = runTest {
         val j = job(shell(0, Box(0, 0, 100, 100)))
         val out = GateFilter().apply(j)
-        assertEquals(BubbleState.Suspect, out.bubbles.first().state)
+        val b = out.bubbles.first()
+        assertEquals(BubbleState.Accepted, b.state)
+        assertEquals("phai giu vo goc de to nen", Box(0, 0, 100, 100), b.shell)
+        assertTrue("phai thu vao de khong doc trung vien bong", b.box.width < 100)
+    }
+
+    /**
+     * F78 — sau khi gop hai manh cua mot bong, hop chu GOP **to hon vo bong**:
+     * no phu 81% dien tich vo nhung chi 40% cua no nam trong vo.
+     *
+     * Luat cu chi hoi chieu "hop chu nam gon trong vo" nen tra ve "vo nay rong"
+     * -> cuu thanh bong rong -> OCR va dich LAI dung doan vua dich, roi ve de
+     * len chinh no. Toa do duoi day lay tu log `Geom` cua trang that.
+     */
+    @Test
+    fun `vo bong bi hop chu gop phu len thi khong phai bong rong`() = runTest {
+        val j = job(
+            shell(0, Box(913, 1429, 913 + 109, 1429 + 379)),
+            text(1, Box(823, 1457, 823 + 185, 1457 + 454)),
+        )
+        val out = GateFilter().apply(j)
+        assertEquals(
+            "vo bong da bi chu phu 81% thi khong duoc OCR lai lan nua",
+            BubbleState.Suspect, out.bubbles.first { it.id == 0 }.state,
+        )
     }
 
     @Test
