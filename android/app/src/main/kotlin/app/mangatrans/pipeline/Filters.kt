@@ -26,8 +26,35 @@ data class PipelineConfig(
      */
     val containedInBubbleMin: Double = 0.9,
 
-    /** Diem tin cay toi thieu cua detector. */
-    val detectMinScore: Float = 0.5f,
+    /**
+     * Diem tin cay toi thieu cua detector.
+     *
+     * 0.5 -> **0.3** (F87). Nguoi dung bao mot khoi tuong thuat tren trang
+     * khong duoc dich. Ho so chan doan cho thay khong phai loi dich va cung
+     * khong phai loi gate — trang do `vung=24 dua sang dich=12`, **ca 12 o chu
+     * tim duoc deu da dich xong**. Khoi kia chua bao gio vao duoc day chuyen.
+     *
+     * Chay lai dung mo hinh do tren dung tam anh, ha nguong xuong 0.01: no CO
+     * thay, chi la duoi nguong. Nam vung trong khoang 0.30..0.50, va **ca nam
+     * deu do dung vao mot cho duy nhat bi bo sot**, khong roi lung tung:
+     *
+     *   0.462 Bubble      704, 771  318x553   (trum ca khoi)
+     *   0.445 TextBubble  874, 869  119x425   cot 「ぼろくて狭い部屋に…」
+     *   0.439 Bubble      704, 766  181x431
+     *   0.346 Bubble      858, 811  159x520
+     *   0.343 TextBubble  720, 820  158x348   cot 「窓から入るネオンの光が…」
+     *
+     * Vi sao 0.3 chu khong phai 0.4: hai cot cua cung mot khoi cham 0.445 va
+     * 0.343. Dung 0.4 thi chi vot duoc cot dau ⇒ khoi do **dich nua voi**,
+     * te hon la khong dich.
+     *
+     * Gia phai tra, do tren 30 trang that (chi dem kind=TextBubble):
+     *
+     *   0.50 -> 192 vung  ·  0.40 -> 195  ·  0.35 -> 197  ·  0.30 -> 201
+     *
+     * Tuc **+9 vung tren 30 trang (+4,7%)**.
+     */
+    val detectMinScore: Float = 0.3f,
 
     /**
      * AD-6 — so ky tu dau nguyen ban dung lam ma doi chieu.
