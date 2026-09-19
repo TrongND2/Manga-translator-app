@@ -171,6 +171,26 @@ class CaptureService : Service() {
         private const val PAGE_CHANGE_DWELL_MS = 400L
 
         /**
+         * So nhip `d` giu lai de in kem khi bao dong no.
+         *
+         * Vi sao can: con so `d` luc no chi noi "khac bao nhieu", khong noi
+         * "di len the nao". Ma phan biet bao dong THAT voi bao dong GIA lai
+         * nam dung o hinh dang doan doc: lat trang that thi `d` nhay mot phat
+         * len ~1,0 va **o nguyen do**; nhieu thoang qua thi vot len roi tu tut
+         * ve — da thay that hai lan o muc 0,137-0,142, tu ve 0,0057 sau ~3,3
+         * giay, va **khong tai hien lai duoc**.
+         *
+         * Duong log cu de tra loi cau nay bi khoa sau co `diagOn`, tuc phai
+         * BAT TRUOC va doan dung luc no xay ra — vo dung voi mot su kien khong
+         * tai hien duoc. In kem luc no thi lan sau nguoi dung dung binh thuong
+         * la co du lieu, khong phai doan truoc gi.
+         *
+         * 12 nhip ~ 1,8 giay lich su (WATCH_POLL_MS = 150 ms). Chi la so thuc,
+         * KHONG co noi dung man hinh, nen khong can co adb.
+         */
+        private const val D_TRAIL_LEN = 12
+
+        /**
          * Toast `LENGTH_LONG` keo ~3,5 giay; cong them mot nhip cho he thong
          * ve xong khi no bien mat.
          */
@@ -712,6 +732,8 @@ class CaptureService : Service() {
             /** Moc gio bat dau vuot nguong. 0 = dang khong nghi ngo gi. */
             var overSince = 0L
             var lastD = 0f
+            /** `d` cua cac nhip gan nhat, cu nhat truoc. Xem `D_TRAIL_LEN`. */
+            val dTrail = ArrayDeque<Float>()
             while (isActive && src.isAlive) {
                 // Anh moc da bi thu hoi (lop phu vua bi xoa) -> khong con gi de
                 // so. Dung im la dung; `getPixel` tren bitmap da thu hoi la sap
@@ -750,6 +772,8 @@ class CaptureService : Service() {
                 if (now != null && base != null) {
                     val d = PageHash.distance(base, now)
                     lastD = d
+                    dTrail.addLast(d)
+                    while (dTrail.size > D_TRAIL_LEN) dTrail.removeFirst()
                     // Duong DO nguong, khong phai log thuong. Chi so do — khong
                     // co noi dung man hinh — va chi chay khi co co adb, vi no
                     // ghi 7 dong moi giay.
@@ -769,7 +793,13 @@ class CaptureService : Service() {
                 if (overSince != 0L &&
                     System.currentTimeMillis() - overSince >= PAGE_CHANGE_DWELL_MS
                 ) {
-                    Log.i(TAG, "man hinh doi (khac %.2f) — dung dich, go lop phu".format(lastD))
+                    // Kem doan doc dan toi bao dong. Chi la so thuc — khong co
+                    // noi dung man hinh — nen in duoc o log thuong.
+                    Log.i(
+                        TAG,
+                        "man hinh doi (khac %.2f) — dung dich, go lop phu · d gan nhat: %s"
+                            .format(lastD, dTrail.joinToString(" ") { "%.3f".format(it) }),
+                    )
                     // Luu lai DUNG khung hinh da gay bao dong. Con so `d`
                     // noi duoc "khac bao nhieu" nhung khong noi duoc "khac
                     // o dau" — ma bao dong gia thi cau hoi luon la cai gi
