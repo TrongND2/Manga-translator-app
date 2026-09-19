@@ -47,6 +47,8 @@ Cử chỉ:
 
 > Trang đầu mất khoảng 3 phút — mô hình phải đọc hết trang trước khi dịch, không phải app treo. Trang đã dịch rồi thì gần như tức thì.
 
+> Thỉnh thoảng mô hình trả về thiếu, một vài bóng không có bản dịch và giữ nguyên tiếng Nhật. Khi đó app **nói rõ đã dịch được bao nhiêu trên bao nhiêu bóng** thay vì báo xong như thường — để bạn biết mà xem lại, chứ không phải tự hỏi mình có bỏ sót gì không.
+
 ---
 
 ## ✎ Dịch sai một chỗ? Sửa thẳng chỗ đó
