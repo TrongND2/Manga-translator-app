@@ -7,14 +7,20 @@ android {
     namespace = "app.mangatrans"
     compileSdk = 36
 
+    // `android.util.Log` la stub nem RuntimeException trong test JVM. Day
+    // chuyen co ghi log hinh hoc (`Pipeline`, `TranslateFilter`), nen thieu
+    // dong nay la 7 test cua TranslateFilter do vi mot cau `Log.i`, khong phai
+    // vi logic sai.
+    testOptions { unitTests.isReturnDefaultValues = true }
+
     defaultConfig {
         applicationId = "app.mangatrans"
         minSdk = 29          // Android 10
         targetSdk = 36
         // `versionCode` la so ma AD-15 doi chieu voi khoang tuong thich khai
         // trong `package.json`. Nang no moi lan phat hanh, ke ca ban vá.
-        versionCode = 11
-        versionName = "1.0.2"
+        versionCode = 12
+        versionName = "1.0.3"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
