@@ -167,10 +167,30 @@ fun isUsableSurface(s: String): Boolean =
  *
  * Do lai voi nguong nay: **bon muc rac bi chan het, khong muc hop le nao bi
  * chan oan**.
+ *
+ * ⚠️ Tra ve LY DO chu khong phai `true`/`false`. Do tren may that: bong
+ * `でるっ!` chi dai 4 ky tu nhung van bi chan — dung, vi dau `!` se bi mo hinh
+ * chep nguyen vao ban dich (quy tac muc tu dien trong CLAUDE.md). Nhung neu
+ * bao "day la ca mot cau" thi noi sai su that voi nguoi dung, va ho khong biet
+ * rang bo dau `!` di la them duoc.
  */
-fun looksLikeWholeSentence(s: String): Boolean {
+enum class SurfaceProblem {
+    /** Dai hon moi muc hop le trong bo mau — thuc chat la ca mot cau. */
+    TooLong,
+    /** Co dau cau / ky hieu — mo hinh chep nguyen chung ra ban dich. */
+    HasMarks,
+}
+
+/** `null` nghia la cho phep dua vao glossary. */
+fun glossarySurfaceProblem(s: String): SurfaceProblem? {
     val t = s.trim()
-    return t.length >= 10 || t.any { it in SENTENCE_MARKS }
+    return when {
+        // Do dai xet TRUOC: cau dai thuong cung co dau cau, ma "ca mot cau"
+        // moi la ly do dung cho no.
+        t.length >= 10 -> SurfaceProblem.TooLong
+        t.any { it in SENTENCE_MARKS } -> SurfaceProblem.HasMarks
+        else -> null
+    }
 }
 
 private const val SENTENCE_MARKS = "…‥。、！？!?♡♥★☆「」『』"

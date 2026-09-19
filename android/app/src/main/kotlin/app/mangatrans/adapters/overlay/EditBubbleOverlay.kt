@@ -17,6 +17,8 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import app.mangatrans.ports.SurfaceProblem
+import app.mangatrans.ports.glossarySurfaceProblem
 import app.mangatrans.ui.Ui
 
 /**
@@ -130,29 +132,58 @@ class EditBubbleOverlay(
             // Do tren may that (F86): trang dang hit cache trong 2,6 giay; sau
             // khi luu mot cau vao glossary thi lan sau phai dich lai tu dau.
             // Nguoi dung tao 4 muc ca cau nhu vay chi trong mot phien.
-            val wholeSentence = app.mangatrans.ports.looksLikeWholeSentence(ja)
-            addView(Ui.button(ctx, "Lưu vào từ điển riêng", Ui.C.glossary, Ui.Weight.Tonal) {
+            val problem = glossarySurfaceProblem(ja)
+            // ⚠️ Dong bao ket qua phai nam NGAY DUOI nut nay, khong duoc dung
+            // `st`. `st` nam TREN ca hai nut Luu, co 12sp va alpha 0.6, con
+            // ngay duoi nut da san mot dong y gan het — bam xong nguoi dung
+            // nhin dung cho vua bam va **khong thay gi doi**. Do la dung cai
+            // bay cu: chan duoc nhung khong bao duoc la da chan.
+            val gHint = Ui.hint(ctx, when (problem) {
+                SurfaceProblem.TooLong ->
+                    "Nguyên bản ở trên là cả một câu — hãy dùng \"Lưu cho riêng trang này\". " +
+                        "Từ điển riêng chỉ hợp với cụm ngắn lặp lại nhiều trang."
+                SurfaceProblem.HasMarks ->
+                    "Nguyên bản ở trên có dấu câu / ký hiệu — hãy dùng \"Lưu cho riêng " +
+                        "trang này\". Mục từ điển có dấu câu sẽ bị chép nguyên dấu ra bản dịch."
+                null ->
+                    "\"Từ điển riêng\" áp cho MỌI trang về sau — chỉ nên dùng khi cụm " +
+                        "chữ Nhật ở trên là cụm lặp lại (tên nhân vật, thành ngữ, xưng hô)."
+            })
+            // Nut doi hinh theo trang thai: bi chan thi ve dang Quiet mau trung
+            // tinh, de nguoi dung biet TRUOC khi bam chu khong phai sau.
+            addView(Ui.button(
+                ctx,
+                "Lưu vào từ điển riêng",
+                if (problem != null) Ui.C.neutral else Ui.C.glossary,
+                if (problem != null) Ui.Weight.Quiet else Ui.Weight.Tonal,
+            ) {
                 val s = field.text.toString().trim()
+                // Chan chu khong chi canh bao: dong chu canh bao cu da nam ngay
+                // duoi nut va van khong ngan duoc 4 muc rac.
+                val refuse = when (problem) {
+                    SurfaceProblem.TooLong ->
+                        "Không lưu được: nguyên bản là cả một câu nên chỉ khớp đúng trang " +
+                            "này, mà lưu vào từ điển sẽ xoá cache và bắt dịch lại cả trang. " +
+                            "Dùng \"Lưu cho riêng trang này\"."
+                    // Ly do KHAC han, nen dong chu cung phai khac: `でるっ!` chi
+                    // dai 4 ky tu, bao no la "ca mot cau" la noi sai.
+                    SurfaceProblem.HasMarks ->
+                        "Không lưu được: nguyên bản có dấu câu / ký hiệu (! ? ♡ 。…) — mô " +
+                            "hình sẽ chép nguyên chúng vào bản dịch. Dùng \"Lưu cho riêng " +
+                            "trang này\", hoặc vào Từ điển riêng thêm cụm đã bỏ dấu câu."
+                    null -> null
+                }
                 when {
                     s.isEmpty() -> st.text = "Bản dịch đang để trống."
-                    // Chan chu khong chi canh bao: dong chu canh bao cu da nam
-                    // ngay duoi nut va van khong ngan duoc 4 muc rac.
-                    wholeSentence -> st.text =
-                        "Nguyên bản ở trên là cả một câu nên chỉ khớp đúng trang này, " +
-                            "mà lưu vào từ điển sẽ xoá cache và bắt dịch lại cả trang. " +
-                            "Dùng \"Lưu cho riêng trang này\" — nhanh hơn và giữ đúng chỗ sửa."
+                    refuse != null -> {
+                        gHint.text = refuse
+                        gHint.setTextColor(Ui.C.danger)
+                        gHint.alpha = 1f
+                    }
                     else -> { onSaveGlossary(s); hide() }
                 }
             })
-            addView(Ui.hint(
-                ctx,
-                if (wholeSentence)
-                    "Nguyên bản ở trên là cả một câu — hãy dùng \"Lưu cho riêng trang này\". " +
-                        "Từ điển riêng chỉ hợp với cụm ngắn lặp lại nhiều trang."
-                else
-                    "\"Từ điển riêng\" áp cho MỌI trang về sau — chỉ nên dùng khi cụm " +
-                        "chữ Nhật ở trên là cụm lặp lại (tên nhân vật, thành ngữ, xưng hô).",
-            ))
+            addView(gHint)
             if (removable) {
                 addView(Ui.gap(ctx, 12))
                 addView(Ui.button(ctx, "Gỡ lớp này", Ui.C.danger, Ui.Weight.Quiet) {
