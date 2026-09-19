@@ -62,6 +62,19 @@ Hai cách lưu, khác nhau rõ:
 
 Vì sao phải sửa chứ không phải xoá rồi dịch lại: đo trên máy thật, dịch lại cùng một trang cho **5/5 câu giống hệt từng chữ** — mô hình không hề ngẫu nhiên. Xoá chỉ trả về đúng cái sai cũ.
 
+### Khi nào app không cho lưu vào từ điển riêng
+
+Ô sửa lấy **nguyên văn cả bóng thoại** làm mặt chữ, mà cả một câu thì chỉ khớp đúng bóng đó trên đúng trang đó — không bao giờ dùng lại được. Tệ hơn: thêm một mục từ điển khiến app quên bản dịch của mọi trang chứa cụm đó, tức **xoá luôn bản dịch của chính trang bạn vừa đọc xong**, lần sau mở lại phải dịch lại từ đầu.
+
+Nên app chặn hai trường hợp và nói rõ lý do ngay dưới nút:
+
+| Nguyên bản | Vì sao không nhận |
+|---|---|
+| **dài từ 10 chữ trở lên** | là cả một câu, chỉ khớp một trang |
+| **có dấu câu hoặc ký hiệu** (`! ? ♡ 。…「」`) | mô hình chép nguyên dấu đó vào bản dịch |
+
+Gặp hai trường hợp này thì dùng **Lưu cho riêng trang này** — nhanh hơn, giữ đúng chỗ bạn vừa sửa, và không đụng tới trang nào khác. Nếu vẫn muốn dạy app một cụm, vào **Từ điển riêng** thêm cụm ngắn đã bỏ dấu câu.
+
 ## ⌖ Chữ ngoài bóng thoại — khoanh rồi đè bản dịch lên
 
 Chữ hiệu ứng và chữ nằm ngoài bóng thoại thì bộ nhận diện gần như không bắt được. Giữ icon → chạm `⌖` → kéo một khung quanh chữ đó. App đọc chữ Nhật trong khung, dịch, rồi bấm **Đè bản dịch lên trang**.
