@@ -1246,13 +1246,30 @@ class CaptureService : Service() {
                     pageWidth = 0, pageHeight = 0,
                     bubbles = listOf(b), readingOrder = listOf(0),
                 )
+                // ⚠️ Cho nay TRUOC DAY truyen `emptyList()`, tuc nut "📱 AI tren
+                // may" va luong `⌖` **khong he ap tu dien rieng** — trong khi
+                // dich ca trang thi co. Cung mot cum chu, hai duong ra hai ket
+                // qua khac nhau, va duong nguoi dung hay dung de tra nhanh lai
+                // la duong khong co tu dien.
+                //
+                // Loc bang CHINH ham ma duong dich ca trang dung
+                // (`relevantGlossary`), khong chep tay: trong do co phan chuan
+                // hoa dau `ー` (F84) ma chep tay rat de lam rot.
+                val gloss = runCatching {
+                    app.mangatrans.adapters.storage.JsonGlossaryStore(
+                        Composition.glossaryFile(this@CaptureService)
+                    ).confirmed(app.mangatrans.pipeline.Pipeline.SERIES)
+                }.getOrDefault(emptyList())
+                val dung = app.mangatrans.pipeline.relevantGlossary(gloss, listOf(ja))
+                if (dung.isNotEmpty()) Log.i(TAG, "dich mot cum: ${dung.size} muc tu dien")
+
                 var out: String? = null
                 // ⚠️ KHONG loc theo `id == 0`. Chi co MOT bong trong yeu cau,
                 // nhung mo hinh khong phai luc nao cung tra ve dung id da cho —
                 // do that: no sinh ra ban dich (log "bubble dau tien sau
                 // 18606 ms") ma van bao "khong tra loi" vi id lech. Lay cau
                 // dau tien co chu la dung.
-                tr.translate(job, emptyList(), continuing = currentPage != null).collect { bt ->
+                tr.translate(job, dung, continuing = currentPage != null).collect { bt ->
                     if (out == null) out = bt.vi?.takeIf { v -> v.isNotBlank() }
                 }
                 out ?: error("mô hình không trả lời")

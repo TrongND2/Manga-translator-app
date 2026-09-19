@@ -176,20 +176,8 @@ class TranslateFilter(
         return v.length < j.length * MIN_LEN_RATIO
     }
 
-    private fun relevant(all: List<GlossaryEntry>, ja: Collection<String>): List<GlossaryEntry> {
-        if (all.isEmpty()) return all
-        // ⚠️ Chuan hoa CA HAI phia truoc khi so.
-        //
-        // OCR tung tra ve `ザ-メン` (gach noi ASCII) thay vi `ザーメン`, va muc
-        // tu dien nguoi dung go tay thi lai dung `ー` that. Hai chuoi trong
-        // giong nhau ma khong bao gio khop — muc tu dien nam do vo dung ma
-        // khong ai biet (F84). `OcrFilter` da sua phia chu doc ra; sua not phia
-        // tu dien de nhung muc go nham dau gach cung van khop.
-        val page = fixProlongedMark(ja.joinToString("\n"))
-        return all.filter {
-            it.surface.isNotBlank() && page.contains(fixProlongedMark(it.surface))
-        }
-    }
+    private fun relevant(all: List<GlossaryEntry>, ja: Collection<String>): List<GlossaryEntry> =
+        relevantGlossary(all, ja)
 
     fun stream(job: PageJob): Flow<PageEvent> = flow {
         val all = job.translatable
@@ -420,5 +408,34 @@ class TranslateFilter(
         if (sink == null) {
             emit(PageEvent.PageRejected("lech anh xa id sau ${cfg.translateRetries + 1} lan thu"))
         }
+    }
+}
+
+/**
+ * Loc muc tu dien CO MAT trong doan chu Nhat dang dich.
+ *
+ * ⚠️ Chuan hoa CA HAI phia truoc khi so.
+ *
+ * OCR tung tra ve `ザ-メン` (gach noi ASCII) thay vi `ザーメン`, va muc tu dien
+ * nguoi dung go tay thi lai dung `ー` that. Hai chuoi trong giong nhau ma khong
+ * bao gio khop — muc tu dien nam do vo dung ma khong ai biet (F84).
+ * `OcrFilter` da sua phia chu doc ra; sua not phia tu dien de nhung muc go nham
+ * dau gach cung van khop.
+ *
+ * ⚠️ De o muc TEP, khong phai `private` trong `TranslateFilter`, vi duong dich
+ * MOT CUM (`translateOnePhrase`) cung phai loc y het. Truoc day duong do truyen
+ * `emptyList()` — tuc nut "📱 AI tren may" va luong `⌖` **khong he ap tu dien
+ * rieng**, trong khi dich ca trang thi co. Cung mot cum chu, hai duong ra hai
+ * ket qua. Chep tay logic nay sang ben kia se lam mat dung phan chuan hoa `ー`
+ * o tren, nen phai dung chung mot ham.
+ */
+internal fun relevantGlossary(
+    all: List<GlossaryEntry>,
+    ja: Collection<String>,
+): List<GlossaryEntry> {
+    if (all.isEmpty()) return all
+    val page = fixProlongedMark(ja.joinToString("\n"))
+    return all.filter {
+        it.surface.isNotBlank() && page.contains(fixProlongedMark(it.surface))
     }
 }
